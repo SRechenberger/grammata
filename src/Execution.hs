@@ -20,7 +20,7 @@ where
         | String    (Maybe String)
         | Record    [Maybe Type]
         | Array Int [Maybe Type] 
-        | Function  (Maybe ([Type] -> Execution Type))
+        | Method    (Maybe ([Type] -> Execution Type))
         deriving(Eq)
 
     type Identifier = String
