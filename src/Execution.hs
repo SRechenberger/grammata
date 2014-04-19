@@ -15,15 +15,23 @@ module Execution
     Identifier, ErrorMessage
     -- ** Execution Types
 ,   Number, Function, Symbol, ExitState
+    -- ** Expression Type
+,   Expression (Variable, Constant, Binary, Unary, Application)
     -- ** Execution Monad
 ,   Execution 
 
     -- * Functions
 ,   run
     -- ** Variables
-,   declare, assignNumber, (#=), assignFunction, (§=), assignVariable, (?=), readNumber, readFunction
-    -- ** Construction functions
+,   declare, assign, (.=), eval
+    -- ** Construction of functions
 ,   buildFunction
+
+    -- * Program control
+    -- ** Control Structures
+,   ifThen, ifThenElse, while, doWhile, for
+    -- ** Termination
+,   exitFailing, exitSuccess
 )
 where
     import Data.List
@@ -31,6 +39,7 @@ where
     import Control.Monad.Trans.Either
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
     import Control.Monad.State.Class
+    import Control.Applicative
 
     type Identifier = String
     type ErrorMessage = String
@@ -62,6 +71,23 @@ where
     -- |The @Execution@ monad has a symbol table as its state and returns either an error message or a number.
     type Execution a = EitherT ExitState (StateT [Symbol] IO) a
 
+    -- |Arithmetical expressions
+    data Expression =
+          Variable Identifier
+        | Constant Number
+        | Binary (Execution (Number -> Number -> Number)) Expression Expression
+        | Unary (Execution (Number -> Number)) Expression
+        | Application Function [Expression] 
+
+    -- |Evaluation of arithmetical expressions.
+    eval :: Expression        -- ^ Expression to be evaluated.
+         -> Execution Number  -- ^ Result of the evaluation.
+    eval (Variable id)        = readNumber id
+    eval (Constant num)       = return num
+    eval (Binary func a b)    = func <*> eval a <*> eval b
+    eval (Unary func a)       = func <*> eval a
+    eval (Application f args) = mapM eval args >>= f
+
     -- |Executes the interpreted program.
     run :: Execution ()     -- ^ The program to run.
         -> IO ExitState     -- ^ The result of an error message.
@@ -86,13 +112,13 @@ where
             Nothing -> put $ (id, [Null]):symtable
             Just vs -> put $ (id, Null:vs):removeFromSymboltable id symtable
 
-    -- |Assignes the given value to the top legal scope of the symbol identified by the given identifier.
-    assignNumber :: Identifier      -- ^ The identifier to which the number is to be assigned.
-                 -> Number          -- ^ The number to be assigned to the variable.
-                 -> Execution ()    -- ^ Resulting action.
-    assignNumber "result" _ = exitFailing $ "ERROR its illegal to assign to result that way"
-    assignNumber id val = do
+    -- |Assignes the value of the given expression to the top legal scope of the symbol identified by the given identifier.
+    assign :: Identifier      -- ^ The identifier to which the number is to be assigned.
+           -> Expression      -- ^ The Expression to be assigned to the variable.
+           -> Execution ()    -- ^ Resulting action.
+    assign id expr = do
         symtable <- get
+        val <- eval expr
         case lookup id symtable of
             Nothing                -> exitFailing $ "ERROR " ++ id ++ " undeclared"
             Just (Null:vs)         -> put $ (id, (Number val):vs) : removeFromSymboltable id symtable 
@@ -100,9 +126,20 @@ where
             Just ((Function _):_)  -> exitFailing $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
             Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
 
-    -- |Infix version of @assignNumber@.
-    (#=) :: Identifier -> Number -> Execution ()
-    (#=) = assignNumber
+    (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
+         -> Expression      -- ^ The Expression to be assigned to the variable.
+         -> Execution ()    -- ^ Resulting action.
+    (.=) = assign
+
+    -- |Wipes the currently visible variable identified by the given identifier.
+    wipe :: Identifier      -- ^ The identifier whichs actually visible value is to be wiped.
+         -> Execution ()    -- ^ Resulting action.
+    wipe id = do
+        symtable <- get
+        case lookup id symtable of
+            Nothing     -> exitFailing $ "ERROR " ++ id ++ " does not exist"
+            Just []     -> exitFailing $ "ERROR no visible variable identified by " ++ id
+            Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
 
     -- |Assignes the given function to the top legal scope of the symbol identified by the given identifier.
     assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
@@ -122,52 +159,19 @@ where
     (§=) :: Identifier -> Function -> Execution ()
     (§=) = assignFunction
 
-    -- |Overwrites the currently visible value of whatever is identified by the first identifier to the currently visible value identified by the second identifier.
-    assignVariable :: Identifier    -- ^ The identifier to which the number or function identified by the second identifier is to be assigned.
-                   -> Identifier    -- ^ The identifier identifiing the number or function to be assigned.
-                   -> Execution ()  -- ^ Resulting Action.
-    assignVariable "result" _ = exitFailing $ "ERROR its illegal to assign to result that way"
-    assignVariable _ "result" = exitFailing $ "ERROR its illegal to assing result to someting"
-    assignVariable lhs rhs = do
-        symtable <- get
-        case (lookup lhs symtable, lookup rhs symtable) of
-            (Just _, Just (Null:rhss))                           -> exitFailing $ "ERROR " ++ rhs ++ " is NULL"
-            (Just (Function _ : lhss), Just (Function f : rhss)) -> put $ (lhs, Function f : lhss) : removeFromSymboltable lhs symtable
-            (Just (Number _ : lhss), Just (Number n : rhss))     -> put $ (lhs, Number n : lhss) : removeFromSymboltable lhs symtable
-            (Just (Number _ : _), Just (Function _ : _))         -> exitFailing $ "ERROR " ++ lhs ++ " is already a number, thus it cannot be overwritten to a function"
-            (Just (Function _ : _), Just (Number _ : _))         -> exitFailing $ "ERROR " ++ lhs ++ " is already a function, thus it cannot be overwritten to a number"
-            (Just (Null : lhss), Just (x: rhss))                 -> put $ (lhs, x:lhss) : removeFromSymboltable lhs symtable
-            (Just [], _)                                         -> exitFailing $ "ERROR no visible variable identified by " ++ lhs
-            (_, Just [])                                         -> exitFailing $ "ERROR no visible variable identified by " ++ rhs
-            (Nothing, _)                                         -> exitFailing $ "ERROR " ++ rhs ++ " undeclared"
-            (_, Nothing)                                         -> exitFailing $ "ERROR " ++ rhs ++ " undeclared"
-
-    -- |Infix version of @assignVariable@.
-    (?=) :: Identifier -> Identifier -> Execution ()
-    (?=) = assignVariable
-
-    -- |Wipes the currently visible variable identified by the given identifier.
-    wipe :: Identifier      -- ^ The identifier whichs actually visible value is to be wiped.
-         -> Execution ()    -- ^ Resulting action.
-    wipe id = do
-        symtable <- get
-        case lookup id symtable of
-            Nothing     -> exitFailing $ "ERROR " ++ id ++ " does not exist"
-            Just []     -> exitFailing $ "ERROR no visible variable identified by " ++ id
-            Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
-
     -- |Builds the frame for a new function.
-    buildFunction :: [Identifier]       -- ^ List of the function parameter names. 
+    buildFunction :: Identifier         -- ^ Identifier of the Function
+                  -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution Number   -- ^ The body of the function.
-                  -> Function           -- ^ The appliable function.
-    buildFunction ids body = \args -> if length ids /= length args 
+                  -> Execution ()       -- ^ The resulting action.
+    buildFunction id ids body = assignFunction id $ \args -> if length ids /= length args 
         then if length ids < length args 
             then exitFailing $ "ERROR function applied to to many arguments"
             else exitFailing $ "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
         else do
             flip mapM_ (zip ids args) $ \(id, num) -> do 
                 declare id
-                id #= num
+                id .= (Constant num)
             toReturn <- body
             mapM_ wipe ids
             return toReturn
@@ -193,6 +197,60 @@ where
             Just []                  -> exitFailing $ "ERROR " ++ id ++ " is totally wiped"
             Just (Number num : vs)   -> exitFailing $ "ERROR " ++ id ++ " is a number"
             Just (Function fun : vs) -> return fun
+
+    -- |An if .. then .. statement
+    ifThen :: Expression     -- ^ Condition
+           -> Execution ()   -- ^ Action to be executed if the Condition is True.
+           -> Execution ()   -- ^ Resulting action.
+    ifThen condition actionA = do
+        cond <- eval condition 
+        if cond > 0
+            then actionA 
+            else return ()
+
+    -- |An if .. then .. else .. statement
+    ifThenElse :: Expression     -- ^ Condition
+               -> Execution ()   -- ^ Action to be executed if the Condition is True.
+               -> Execution ()   -- ^ Action to be executed if the Condition is False.
+               -> Execution ()   -- ^ Resulting action.
+    ifThenElse condition actionA actionB = do
+        cond <- eval condition 
+        if cond > 0
+            then actionA 
+            else actionB
+
+    -- |A while loop
+    while :: Expression           -- ^ Condition of continuation.
+          -> Execution ()         -- ^ Execution to be iterated.
+          -> Execution ()         -- ^ Resulting action.
+    while cond exe = ifThen cond $ do
+            exe
+            while cond exe
+
+    -- |A do.. while loop
+    doWhile :: Expression           -- ^ Condition of continuation.
+            -> Execution ()         -- ^ Execution to be iterated.
+            -> Execution ()         -- ^ Resulting action. 
+    doWhile cond exe = do
+        exe
+        ifThen cond (doWhile cond exe)
+
+    -- |A for loop
+    for :: Identifier               -- ^ Counter variable
+        -> Expression               -- ^ Stop value
+        -> Expression               -- ^ Step size
+        -> Execution ()             -- ^ Counter dependent action to be iterated
+        -> Execution ()             -- ^ Resulting action.
+    for var stop step exec = do
+        cond <- (-) <$> eval stop <*> (eval . Variable $ var)
+        if cond > 0 
+            then do
+                exec
+                i <- eval . Variable $ var
+                s <- eval step 
+                var .= (Constant $ i + s)
+                for var stop step exec
+            else return ()
 
     -- |Terminates the execution with an error message.
     exitFailing :: ErrorMessage     -- ^ The message returned on failure.
