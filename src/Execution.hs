@@ -62,7 +62,7 @@ where
             Nothing                -> terminate $ "ERROR " ++ id ++ " undeclared"
             Just (Null:vs)         -> put $ (id, (Number val):vs) : removeFromSymboltable id symtable 
             Just ((Number _):vs)   -> put $ (id, (Number val):vs) : removeFromSymboltable id symtable
-            Just ((Function _):_)  -> terminate $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwritten"
+            Just ((Function _):_)  -> terminate $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
             Just []                -> terminate $ "ERROR no legal incarnation of " ++ id
 
     -- |Infix version of @assignNumber@.
@@ -76,13 +76,32 @@ where
         case lookup id symtable of
             Nothing                -> terminate $ "ERROR " ++ id ++ " undeclared"
             Just (Null:vs)         -> put $ (id, (Function func):vs) : removeFromSymboltable id symtable 
-            Just ((Number _):_)    -> terminate $ "ERROR " ++ id ++ " is already a number, thus it cannot be overwritten"
+            Just ((Number _):_)    -> terminate $ "ERROR " ++ id ++ " is already a number, thus it cannot be overwritten to a function"
             Just ((Function _):vs) -> put $ (id, (Function func):vs) : removeFromSymboltable id symtable
             Just []                -> terminate $ "ERROR no legal incarnation of " ++ id
 
     -- |Infix version of @assignNumber@.
     (%=) :: Identifier -> ([Double] -> Execution Double) -> Execution ()
     (%=) = assignFunction
+
+    -- |Overwrites the currently visible value of whatever is identified by the first identifier to the currently visible value identified by the second identifier.
+    assignVariable :: Identifier -> Identifier -> Execution ()
+    assignVariable lhs rhs = do
+        symtable <- get
+        case (lookup lhs symtable, lookup rhs symtable) of
+            (Just _, Just (Null:rhss))                           -> terminate $ "ERROR " ++ rhs ++ " is NULL"
+            (Just (Function _ : lhss), Just (Function f : rhss)) -> put $ (lhs, Function f : lhss) : removeFromSymboltable lhs symtable
+            (Just (Number _ : lhss), Just (Number n : rhss))     -> put $ (lhs, Number n : lhss) : removeFromSymboltable lhs symtable
+            (Just (Number _ : _), Just (Function _ : _))         -> terminate $ "ERROR " ++ lhs ++ " is already a number, thus it cannot be overwritten to a function"
+            (Just (Function _ : _), Just (Number _ : _))         -> terminate $ "ERROR " ++ lhs ++ " is already a function, thus it cannot be overwritten to a number"
+            (Just (Null : lhss), Just (x: rhss))                 -> put $ (lhs, x:lhss) : removeFromSymboltable lhs symtable
+            (Nothing, _)                                         -> terminate $ "ERROR " ++ rhs ++ " undeclared"
+            (_, Nothing)                                         -> terminate $ "ERROR " ++ rhs ++ " undeclared"
+            _                                                    -> terminate $ "ERROR unexpected error"
+
+    -- |Infix version of @assignVariable@.
+    (§=) :: Identifier -> Identifier -> Execution ()
+    (§=) = assignVariable
 
     -- |Terminates the execution with a message in case of an error.
     terminate :: String -> Execution a
