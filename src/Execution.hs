@@ -6,7 +6,6 @@ where
 
     import Control.Monad.Error
     import Control.Monad.Trans.State.Lazy
---  import Control.Monad.IO 
 
     -- |Union type of a NULL value, Numbers and Functions.
     data Type =
@@ -81,8 +80,8 @@ where
             Just []                -> terminate $ "ERROR no legal incarnation of " ++ id
 
     -- |Infix version of @assignNumber@.
-    (%=) :: Identifier -> ([Double] -> Execution Double) -> Execution ()
-    (%=) = assignFunction
+    (§=) :: Identifier -> ([Double] -> Execution Double) -> Execution ()
+    (§=) = assignFunction
 
     -- |Overwrites the currently visible value of whatever is identified by the first identifier to the currently visible value identified by the second identifier.
     assignVariable :: Identifier -> Identifier -> Execution ()
@@ -95,13 +94,38 @@ where
             (Just (Number _ : _), Just (Function _ : _))         -> terminate $ "ERROR " ++ lhs ++ " is already a number, thus it cannot be overwritten to a function"
             (Just (Function _ : _), Just (Number _ : _))         -> terminate $ "ERROR " ++ lhs ++ " is already a function, thus it cannot be overwritten to a number"
             (Just (Null : lhss), Just (x: rhss))                 -> put $ (lhs, x:lhss) : removeFromSymboltable lhs symtable
+            (Just [], _)                                         -> terminate $ "ERROR no visible variable identified by " ++ lhs
+            (_, Just [])                                         -> terminate $ "ERROR no visible variable identified by " ++ rhs
             (Nothing, _)                                         -> terminate $ "ERROR " ++ rhs ++ " undeclared"
             (_, Nothing)                                         -> terminate $ "ERROR " ++ rhs ++ " undeclared"
-            _                                                    -> terminate $ "ERROR unexpected error"
 
     -- |Infix version of @assignVariable@.
-    (§=) :: Identifier -> Identifier -> Execution ()
-    (§=) = assignVariable
+    (?=) :: Identifier -> Identifier -> Execution ()
+    (?=) = assignVariable
+
+    -- |Wipes the currently visible variable identified by the given identifier.
+    wipe :: Identifier -> Execution ()
+    wipe id = do
+        symtable <- get
+        case lookup id symtable of
+            Nothing     -> terminate $ "ERROR " ++ id ++ " does not exist"
+            Just []     -> terminate $ "ERROR no visible variable identified by " ++ id
+            Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
+
+    -- |Builds the frame for a new function.
+    buildFunction :: [Identifier] -> Execution Double -> ([Double] -> Execution Double)
+    buildFunction ids body = \args -> if length ids /= length args 
+        then if length ids < length args 
+            then terminate $ "ERROR function applied to to many arguments"
+            else terminate $ "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
+        else do
+            flip mapM_ (zip ids args) $ \(id, num) -> do 
+                declareNumber id
+                id #= num
+            toReturn <- body
+            mapM_ wipe ids
+            return toReturn
+
 
     -- |Terminates the execution with a message in case of an error.
     terminate :: String -> Execution a
