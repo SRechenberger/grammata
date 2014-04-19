@@ -1,3 +1,13 @@
+{-|
+Module      : Execution
+Description : grammata-Script execution utilities
+Copyright   : (c) Sascha Rechenberger, 2014
+License     : GPL-3
+Maintainer  : sascha.rechenberger@uni-ulm.de
+Stability   : experimental
+Portability : POSIX
+-}
+
 module Execution 
 (   
 )
