@@ -48,8 +48,8 @@ where
     type Number = Double
 
     -- |The function type, which is used.
-    type Function = [Double]            -- ^ The arguments given to the function.
-                  -> Execution Double   -- ^ The resulting action returning the function result.
+    type Function = [Number]            -- ^ The arguments given to the function.
+                  -> Execution Number   -- ^ The resulting action returning the function result.
 
     -- |Union type of a NULL value, Numbers and Functions.
     data Type =
@@ -77,16 +77,16 @@ where
         | Constant Number
         | Binary (Execution (Number -> Number -> Number)) Expression Expression
         | Unary (Execution (Number -> Number)) Expression
-        | Application Function [Expression] 
+        | Application Identifier [Expression] 
 
     -- |Evaluation of arithmetical expressions.
     eval :: Expression        -- ^ Expression to be evaluated.
          -> Execution Number  -- ^ Result of the evaluation.
-    eval (Variable id)        = readNumber id
-    eval (Constant num)       = return num
-    eval (Binary func a b)    = func <*> eval a <*> eval b
-    eval (Unary func a)       = func <*> eval a
-    eval (Application f args) = mapM eval args >>= f
+    eval (Variable id)          = readNumber id
+    eval (Constant num)         = return num
+    eval (Binary func a b)      = func <*> eval a <*> eval b
+    eval (Unary func a)         = func <*> eval a
+    eval (Application fid args) = readFunction fid >>= \f -> mapM eval args >>= f
 
     -- |Executes the interpreted program.
     run :: Execution ()     -- ^ The program to run.
