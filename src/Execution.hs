@@ -49,7 +49,7 @@ where
 
     -- |The function type, which is used.
     type Function = [Number]            -- ^ The arguments given to the function.
-                  -> Execution Number   -- ^ The resulting action returning the function result.
+                 -> Execution Number   -- ^ The resulting action returning the function result.
 
     -- |Union type of a NULL value, Numbers and Functions.
     data Type =
