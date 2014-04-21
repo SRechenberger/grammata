@@ -12,26 +12,26 @@ module Execution
 (   
     -- * Types
     -- ** Simple
-    Identifier, ErrorMessage
+    Identifier, ErrorMessage,
     -- ** Execution Types
-,   Number, Function, Symbol, ExitState
+    Number, Function, Symbol, ExitState,
     -- ** Expression Type
-,   Expression (Variable, Constant, Binary, Unary, Application)
+    Expression (Variable, Constant, Binary, Unary, Application),
     -- ** Execution Monad
-,   Execution 
+    Execution, 
 
     -- * Functions
-,   run
+    run,
     -- ** Variables
-,   declare, assign, (.=), eval
+    declare, assign, (.=), eval,
     -- ** Construction of functions
-,   buildFunction
+    buildFunction,
 
     -- * Program control
     -- ** Control Structures
-,   ifThen, ifThenElse, while, doWhile, for
+    ifThen, ifThenElse, while, doWhile, for,
     -- ** Termination
-,   exitFailing, exitSuccess
+    exitFailing, exitSuccess
 )
 where
     import Data.List

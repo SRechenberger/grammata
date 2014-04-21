@@ -12,8 +12,9 @@ program(num n){
 program(num a, num b){
     var i = 0;
 
-    for i to a in 1 do{
+    for i to a in 1{
         b = b * b;
     };
+
     output b;
 }
