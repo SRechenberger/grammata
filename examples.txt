@@ -1,20 +1,11 @@
-program(num n){
-    var fak = func(num n){
-        if n == 0 then
-            return 1;
-        else
-            return n * fak(n-1);
+program{
+    num init := 4;
+    num res := 1;
+    num i := 1;
+
+    for(i;init+1;1){
+        res := res * i;
     };
 
-    output fak(n);
-}
-
-program(num a, num b){
-    var i = 0;
-
-    for i to a in 1{
-        b = b * b;
-    };
-
-    output b;
+    return res;
 }

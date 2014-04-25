@@ -5,13 +5,13 @@ Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de
 Stability   : stable
-Portability : POSIX
+Portability : portable
 -}
 
-module Parser.Analysis 
+module Grammata.Parser.Analysis 
 (
     -- * Analysis Monad
-    Analysis,
+    Analysis (LexicalError, SyntaxError, Parsed),
 
     -- * Throwing errors
     syntaxError, lexicalError
@@ -45,9 +45,11 @@ where
     -- |Applicative instance of Analysis
     instance Applicative (Analysis lex syn) where
         pure = return
-        Parsed f         <*> Parsed x = Parsed (f x)
-        LexicalError err <*> _        = LexicalError err
-        SyntaxError  err <*> _        = SyntaxError err
+        Parsed f         <*> Parsed x         = Parsed (f x)
+        LexicalError err <*> _                = LexicalError err
+        SyntaxError  err <*> _                = SyntaxError err
+        _                <*> LexicalError err = LexicalError err
+        _                <*> SyntaxError  err = SyntaxError err
 
     -- |Show instance of Analysis
     instance (Show lex, Show syn, Show a) => Show (Analysis lex syn a) where

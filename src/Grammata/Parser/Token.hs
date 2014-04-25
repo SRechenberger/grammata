@@ -5,10 +5,10 @@ Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de
 Stability   : stable
-Portability : POSIX
+Portability : portable
 -}
 
-module Parser.Token
+module Grammata.Parser.Token
 (
     -- * Position Types
     Pos, Column, Line,

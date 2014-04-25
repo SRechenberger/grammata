@@ -5,23 +5,12 @@ Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de
 Stability   : experimental
-Portability : POSIX
+Portability : portable
 -}
 
-module Execution 
+module Grammata.Execution 
 (   
-    -- * Types
-    -- ** Simple
-    Identifier, ErrorMessage,
-    -- ** Execution Types
-    Number, Function, Symbol, ExitState,
-    -- ** Expression Type
-    Expression (Variable, Constant, Binary, Unary, Application),
-    -- ** Execution Monad
-    Execution, 
-
     -- * Functions
-    run,
     -- ** Variables
     declare, assign, (.=), eval,
     -- ** Construction of functions
@@ -29,7 +18,7 @@ module Execution
 
     -- * Program control
     -- ** Control Structures
-    ifThen, ifThenElse, while, doWhile, for,
+    ifThenElse, while, doWhile, for,
     -- ** Termination
     exitFailing, exitSuccess
 )
@@ -40,44 +29,10 @@ where
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
     import Control.Monad.State.Class
     import Control.Applicative
+    import Control.Monad.IO.Class
 
-    type Identifier = String
-    type ErrorMessage = String
-
-    -- |The number type, which is used.
-    type Number = Double
-
-    -- |The function type, which is used.
-    type Function = [Number]            -- ^ The arguments given to the function.
-                 -> Execution Number   -- ^ The resulting action returning the function result.
-
-    -- |Union type of a NULL value, Numbers and Functions.
-    data Type =
-        -- |NULL value.
-          Null 
-        -- |A floating point number.
-        | Number Number
-        -- |A function mapping from a list of numbers to one number.
-        | Function Function
-
-    {- |An element of the symbol table, 
-        which is identified by a unique identifier and contains a stack of values of type @Type@, 
-        of which every element represents a variable identified by the identifier in a scope of the program.
-    -}
-    type Symbol = (Identifier, [Type])
-
-    data ExitState = Success Number | Failure ErrorMessage deriving (Show)
-
-    -- |The @Execution@ monad has a symbol table as its state and returns either an error message or a number.
-    type Execution a = EitherT ExitState (StateT [Symbol] IO) a
-
-    -- |Arithmetical expressions
-    data Expression =
-          Variable Identifier
-        | Constant Number
-        | Binary (Execution (Number -> Number -> Number)) Expression Expression
-        | Unary (Execution (Number -> Number)) Expression
-        | Application Identifier [Expression] 
+    import General --(Execution, Identifier, Number, Function, Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success))
+    import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
 
     -- |Evaluation of arithmetical expressions.
     eval :: Expression        -- ^ Expression to be evaluated.
@@ -86,16 +41,7 @@ where
     eval (Constant num)         = return num
     eval (Binary func a b)      = func <*> eval a <*> eval b
     eval (Unary func a)         = func <*> eval a
-    eval (Application fid args) = readFunction fid >>= \f -> mapM eval args >>= f
-
-    -- |Executes the interpreted program.
-    run :: Execution ()     -- ^ The program to run.
-        -> IO ExitState     -- ^ The result of an error message.
-    run exe = do
-        exit <- flip evalStateT [] . runEitherT $ exe
-        case exit of
-            Left e -> return e
-            Right _ -> return . Failure $ "FATAL ERROR unexpected termination"
+    eval (Application fid args) = readFunction fid >>= \f -> mapM eval args >>= f    
 
     -- |Filters out the symbol identified by the given identifier from the given symbol table.
     removeFromSymboltable :: Identifier     -- ^ The identifier to be filtered out.
@@ -112,9 +58,9 @@ where
             Nothing -> put $ (id, [Null]):symtable
             Just vs -> put $ (id, Null:vs):removeFromSymboltable id symtable
 
-    -- |Assignes the value of the given expression to the top legal scope of the symbol identified by the given identifier.
+    -- |Assignes the value of the given Number to the top legal scope of the symbol identified by the given identifier.
     assign :: Identifier      -- ^ The identifier to which the number is to be assigned.
-           -> Expression      -- ^ The Expression to be assigned to the variable.
+           -> Expression          -- ^ The Number to be assigned to the variable.
            -> Execution ()    -- ^ Resulting action.
     assign id expr = do
         symtable <- get
@@ -126,8 +72,9 @@ where
             Just ((Function _):_)  -> exitFailing $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
             Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
 
+    -- |Infix version of assign
     (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
-         -> Expression      -- ^ The Expression to be assigned to the variable.
+         -> Expression      -- ^ The Number to be assigned to the variable.
          -> Execution ()    -- ^ Resulting action.
     (.=) = assign
 
@@ -162,19 +109,24 @@ where
     -- |Builds the frame for a new function.
     buildFunction :: Identifier         -- ^ Identifier of the Function
                   -> [Identifier]       -- ^ List of the function parameter names. 
-                  -> Execution Number   -- ^ The body of the function.
+                  -> Execution ()       -- ^ The body of the function.
                   -> Execution ()       -- ^ The resulting action.
-    buildFunction id ids body = assignFunction id $ \args -> if length ids /= length args 
-        then if length ids < length args 
-            then exitFailing $ "ERROR function applied to to many arguments"
-            else exitFailing $ "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
-        else do
-            flip mapM_ (zip ids args) $ \(id, num) -> do 
-                declare id
-                id .= (Constant num)
-            toReturn <- body
-            mapM_ wipe ids
-            return toReturn
+    buildFunction id ids body = do 
+        declare id 
+        assignFunction id $ \args -> if length ids /= length args 
+            then if length ids < length args 
+                then exitFailing $ "ERROR function applied to to many arguments"
+                else exitFailing $ "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
+            else do
+                flip mapM_ (zip ids args) $ \(id, num) -> do 
+                    declare id
+                    id .= (Constant num)
+                toReturn <- get >>= liftIO . run body 
+                case toReturn of
+                    Failure err -> exitFailing err
+                    Success res -> do
+                        mapM_ wipe ids
+                        return res
 
     -- |Reads the actually visible number identified by the given identifier.
     readNumber :: Identifier        -- ^ The identifier to be read.
@@ -198,23 +150,13 @@ where
             Just (Number num : vs)   -> exitFailing $ "ERROR " ++ id ++ " is a number"
             Just (Function fun : vs) -> return fun
 
-    -- |An if .. then .. statement
-    ifThen :: Expression     -- ^ Condition
-           -> Execution ()   -- ^ Action to be executed if the Condition is True.
-           -> Execution ()   -- ^ Resulting action.
-    ifThen condition actionA = do
-        cond <- eval condition 
-        if cond > 0
-            then actionA 
-            else return ()
-
     -- |An if .. then .. else .. statement
     ifThenElse :: Expression     -- ^ Condition
                -> Execution ()   -- ^ Action to be executed if the Condition is True.
                -> Execution ()   -- ^ Action to be executed if the Condition is False.
                -> Execution ()   -- ^ Resulting action.
-    ifThenElse condition actionA actionB = do
-        cond <- eval condition 
+    ifThenElse cond actionA actionB = do
+        cond <- eval cond
         if cond > 0
             then actionA 
             else actionB
@@ -223,9 +165,9 @@ where
     while :: Expression           -- ^ Condition of continuation.
           -> Execution ()         -- ^ Execution to be iterated.
           -> Execution ()         -- ^ Resulting action.
-    while cond exe = ifThen cond $ do
+    while cond exe = ifThenElse cond (do
             exe
-            while cond exe
+            while cond exe) (return ())
 
     -- |A do.. while loop
     doWhile :: Expression           -- ^ Condition of continuation.
@@ -233,7 +175,7 @@ where
             -> Execution ()         -- ^ Resulting action. 
     doWhile cond exe = do
         exe
-        ifThen cond (doWhile cond exe)
+        ifThenElse cond (doWhile cond exe) (return ())
 
     -- |A for loop
     for :: Identifier               -- ^ Counter variable
@@ -258,6 +200,6 @@ where
     exitFailing = left . Failure
 
     -- |Terminates the execution successfully returning a number.
-    exitSuccess :: Number           -- ^ The value returned on success.
+    exitSuccess :: Expression       -- ^ The value returned on success.
                 -> Execution a      -- ^ The terminated action.
-    exitSuccess = left . Success
+    exitSuccess e = left . Success =<< eval e

@@ -5,7 +5,7 @@ Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de
 Stability   : experimental
-Portability : POSIX
+Portability : portable
 -}
 
 module Main 
@@ -14,6 +14,14 @@ module Main
 )
 where
     
-    -- |
+    import Grammata
+
+    import System.Environment
+
     main :: IO ()
-    main = putStrLn "Nothing implemented yet."
+    main = do 
+        args <- getArgs
+        case args of
+            []  -> putStrLn "ERROR no input file"
+            t:_ -> do
+                readFile t >>= runScript >>= putStrLn
