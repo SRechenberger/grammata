@@ -39,7 +39,7 @@ where
                 result <- run (interpret program) []
                 case result of
                     Failure err -> return $ "RUNTIME ERROR " ++ err
-                    Success res -> return $ "RESULT: " ++ show res 
+                    Success res -> return . show $ res 
 
     -- |Generates the program action
     interpret :: Program        -- ^ Program-AST

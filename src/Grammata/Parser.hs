@@ -1328,7 +1328,7 @@ parse input = tokenize input >>= parseGrammata
 happyError :: [Token] -> Analysis String String a
 happyError tokens = case tokens of
     []  -> syntaxError "Unexpected end of file."
-    t:_ -> syntaxError $ "Syntactical error at " ++ show t
+    t:_ -> syntaxError . show $ t
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "<command-line>" #-}
