@@ -1,6 +1,6 @@
 {-|
 Module      : General
-Description : general grammata-Script utilities
+Description : General grammata-Script utilities
 Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de

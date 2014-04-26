@@ -1,5 +1,5 @@
 {-|
-Module      : Execution
+Module      : Grammata.Execution
 Description : grammata-Script execution utilities
 Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3

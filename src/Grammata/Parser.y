@@ -1,4 +1,14 @@
 {
+{-|
+Module      : Grammata.Parser
+Description : parser produced by Happy Version 1.19.0
+Copyright   : (c) Sascha Rechenberger, 2014
+License     : GPL-3
+Maintainer  : sascha.rechenberger@uni-ulm.de
+Stability   : experimental
+Portability : portable
+-}
+
 module Grammata.Parser 
 (
     parse

@@ -1,6 +1,6 @@
 {
 {-|
-Module      : Parser.Token
+Module      : Grammata.Parser.Token
 Description : grammata-Script Token Type
 Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3

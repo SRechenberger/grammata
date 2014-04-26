@@ -1,6 +1,6 @@
 {-|
 Module      : Grammata
-Description : Interpretation of grammata scripts
+Description : Conversion of the AST to a runnable Execution type.
 Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
 Maintainer  : sascha.rechenberger@uni-ulm.de

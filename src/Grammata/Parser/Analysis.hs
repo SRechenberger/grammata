@@ -1,5 +1,5 @@
 {-|
-Module      : Parser.Analsysis
+Module      : Grammata.Parser.Analsysis
 Description : Monad and utilities for the parsing process
 Copyright   : (c) Sascha Rechenberger, 2014
 License     : GPL-3
