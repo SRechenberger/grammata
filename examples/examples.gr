@@ -1,0 +1,29 @@
+program{
+    num a := 3;
+    num b := 4;
+    num c;
+
+    func fak := func (num n) {
+        if (n <= 0) then {
+            return 1;
+        } else {
+            return n * fak(n-1);
+        };
+    };
+
+    func ackermann := func (num a, num b){
+        if (a == 0) then {
+            return b + 1;
+        } else {
+            if (b == 0) then {
+                return ackermann (a-1,1);
+            } else {
+                return ackermann(a-1,ackermann(a,b-1));
+            };
+        };
+    };
+    
+    c := --1;
+
+    return c * fak(4) + ackermann(a,b);
+}
