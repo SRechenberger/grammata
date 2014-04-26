@@ -23,5 +23,4 @@ where
         args <- getArgs
         case args of
             []  -> putStrLn "ERROR no input file"
-            t:_ -> do
-                readFile t >>= runScript >>= putStrLn
+            t:_ -> readFile t >>= runScript >>= putStrLn

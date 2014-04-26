@@ -14,12 +14,12 @@ catchIO = Exception.catch
 
 
 version :: Version
-version = Version {versionBranch = [0,1,0,0], versionTags = []}
+version = Version {versionBranch = [0,1,0,1], versionTags = []}
 bindir, libdir, datadir, libexecdir :: FilePath
 
 bindir     = "/home/garro/.cabal/bin"
-libdir     = "/home/garro/.cabal/lib/grammata-0.1.0.0/ghc-7.6.3"
-datadir    = "/home/garro/.cabal/share/grammata-0.1.0.0"
+libdir     = "/home/garro/.cabal/lib/grammata-0.1.0.1/ghc-7.6.3"
+datadir    = "/home/garro/.cabal/share/grammata-0.1.0.1"
 libexecdir = "/home/garro/.cabal/libexec"
 
 getBinDir, getLibDir, getDataDir, getLibexecDir :: IO FilePath

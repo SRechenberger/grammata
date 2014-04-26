@@ -46,7 +46,7 @@ where
     data Program = Program [Declaration] [Statement]
 
     instance Show Program where
-        show (Program ds ss) = "program { " ++ intercalate " " (map show ds) ++ "; " ++ intercalate " " (map show ss) ++ "}"
+        show (Program ds ss) = "program { " ++ unwords (map show ds) ++ "; " ++ unwords (map show ss) ++ "}"
 
     -- |Declarations of functions and numbers
     data Declaration = 
@@ -57,7 +57,7 @@ where
 
     instance Show Declaration where
         show (Num id me) = id ++ case me of {Nothing -> ""; Just e -> show e} ++ ";"
-        show (Func id ps ds ss) = id ++ "(num " ++ intercalate ", num " (map show ps) ++ ") {" ++ intercalate " " (map show ds) ++ " " ++ intercalate " " (map show ss) ++ "}"
+        show (Func id ps ds ss) = id ++ "(num " ++ intercalate ", num " (map show ps) ++ ") {" ++ unwords (map show ds) ++ " " ++ unwords (map show ss) ++ "}"
 
     -- |Program Statements
     data Statement = 
@@ -76,8 +76,8 @@ where
 
     instance Show Statement where
         show (id := e) = id ++ " := " ++ show e ++ ";"
-        show (For i lim step ss) = "for (" ++ i ++ "; " ++ show lim ++ "; " ++ show step ++ ") {" ++ intercalate " " (map show ss) ++ "};"
-        show (While cond ss) = "while (" ++ show cond ++ ") {" ++ intercalate " " (map show ss) ++ "};"
-        show (DoWhile cond ss) = "do {" ++ intercalate " " (map show ss) ++ "} while (" ++ show cond ++ ");"
-        show (If cond th el) = "if (" ++ show cond ++ ") then {" ++ intercalate " " (map show th) ++ "} else {" ++ intercalate " " (map show el) ++ "};"
+        show (For i lim step ss) = "for (" ++ i ++ "; " ++ show lim ++ "; " ++ show step ++ ") {" ++ unwords (map show ss) ++ "};"
+        show (While cond ss) = "while (" ++ show cond ++ ") {" ++ unwords (map show ss) ++ "};"
+        show (DoWhile cond ss) = "do {" ++ unwords (map show ss) ++ "} while (" ++ show cond ++ ");"
+        show (If cond th el) = "if (" ++ show cond ++ ") then {" ++ unwords (map show th) ++ "} else {" ++ unwords (map show el) ++ "};"
         show (Return e) = "return " ++ show e ++ ";"

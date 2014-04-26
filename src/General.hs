@@ -28,10 +28,10 @@ where
     type Identifier = String
     type ErrorMessage = String
 
-    -- |The number type, which is used.
+    -- |The number type.
     type Number = Double
 
-    -- |The function type, which is used.
+    -- |The function type.
     type Function = [Number]            -- ^ The arguments given to the function.
                  -> Execution Number    -- ^ The resulting action returning the function result.
 

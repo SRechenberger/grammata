@@ -30,6 +30,7 @@ where
     import Control.Monad.State.Class
     import Control.Applicative
     import Control.Monad.IO.Class
+    import Control.Monad (forM_, when)
 
     import General --(Execution, Identifier, Number, Function, Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success))
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
@@ -67,9 +68,9 @@ where
         val <- eval expr
         case lookup id symtable of
             Nothing                -> exitFailing $ "ERROR " ++ id ++ " undeclared"
-            Just (Null:vs)         -> put $ (id, (Number val):vs) : removeFromSymboltable id symtable 
-            Just ((Number _):vs)   -> put $ (id, (Number val):vs) : removeFromSymboltable id symtable
-            Just ((Function _):_)  -> exitFailing $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
+            Just (Null:vs)         -> put $ (id, Number val : vs) : removeFromSymboltable id symtable 
+            Just (Number _ : vs)   -> put $ (id, Number val : vs) : removeFromSymboltable id symtable
+            Just (Function _ : _)  -> exitFailing $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
             Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
 
     -- |Infix version of assign
@@ -92,14 +93,13 @@ where
     assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
                    -> Function          -- ^ The function to be assigned to the identifier
                    -> Execution ()      -- ^ Resulting action.
-    assignFunction "result" _ = exitFailing $ "ERROR its illegal to assign to result that way"
     assignFunction id func = do
         symtable <- get
         case lookup id symtable of
             Nothing                -> exitFailing $ "ERROR " ++ id ++ " undeclared"
-            Just (Null:vs)         -> put $ (id, (Function func):vs) : removeFromSymboltable id symtable 
-            Just ((Number _):_)    -> exitFailing $ "ERROR " ++ id ++ " is already a number, thus it cannot be overwritten to a function"
-            Just ((Function _):vs) -> put $ (id, (Function func):vs) : removeFromSymboltable id symtable
+            Just (Null:vs)         -> put $ (id, Function func : vs) : removeFromSymboltable id symtable 
+            Just (Number _ : _)    -> exitFailing $ "ERROR " ++ id ++ " is already a number, thus it cannot be overwritten to a function"
+            Just (Function _ : vs) -> put $ (id, Function func : vs) : removeFromSymboltable id symtable
             Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
 
     -- |Infix version of @assignNumber@.
@@ -114,13 +114,13 @@ where
     buildFunction id ids body = do 
         declare id 
         assignFunction id $ \args -> if length ids /= length args 
-            then if length ids < length args 
-                then exitFailing $ "ERROR function applied to to many arguments"
-                else exitFailing $ "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
+            then exitFailing $ if length ids < length args 
+                then "ERROR function applied to to many arguments"
+                else "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
             else do
-                flip mapM_ (zip ids args) $ \(id, num) -> do 
+                forM_ (zip ids args) $ \(id, num) -> do 
                     declare id
-                    id .= (Constant num)
+                    id .= Constant num
                 toReturn <- get >>= liftIO . run body 
                 case toReturn of
                     Failure err -> exitFailing err
@@ -185,14 +185,12 @@ where
         -> Execution ()             -- ^ Resulting action.
     for var stop step exec = do
         cond <- (-) <$> eval stop <*> (eval . Variable $ var)
-        if cond > 0 
-            then do
-                exec
-                i <- eval . Variable $ var
-                s <- eval step 
-                var .= (Constant $ i + s)
-                for var stop step exec
-            else return ()
+        when (cond > 0) $ do
+            exec
+            i <- eval . Variable $ var
+            s <- eval step 
+            var .= (Constant $ i + s)
+            for var stop step exec
 
     -- |Terminates the execution with an error message.
     exitFailing :: ErrorMessage     -- ^ The message returned on failure.
