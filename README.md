@@ -1,7 +1,7 @@
 grammata
 ========
 
-**Grammata** is a simple script language run and interpreted as a monadic structure.
+**Grammata** is a simple script language interpreted and run as a monadic structure.
 
 Syntax
 ------
