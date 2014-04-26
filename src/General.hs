@@ -24,7 +24,10 @@ where
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
     import Control.Monad.IO.Class (liftIO)
 
+    -- |Identifies a value in the symbol table.
     type Identifier = String
+
+    -- |Error messages thrown.
     type ErrorMessage = String
 
     -- |The number type.

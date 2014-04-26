@@ -27,7 +27,9 @@ where
 
     import Control.Applicative ((<*>), (<$>))
 
-    runScript :: String -> IO String
+    -- |Runs a grammata script returning the result or error message as a string.
+    runScript :: String     -- ^ Script to run.
+              -> IO String  -- ^ Result.
     runScript input = do
         let analysis = parse input
         case analysis of

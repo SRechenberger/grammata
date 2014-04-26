@@ -39,8 +39,8 @@ where
          -> Execution Number  -- ^ Result of the evaluation.
     eval (Variable id)          = readNumber id
     eval (Constant num)         = return num
-    eval (Binary func a b)      = func <*> eval a <*> eval b
-    eval (Unary func a)         = func <*> eval a
+    eval (Binary func a b)      = func <$> eval a <*> eval b
+    eval (Unary func a)         = func <$> eval a
     eval (Application fid args) = readFunction fid >>= \f -> mapM eval args >>= f    
 
     -- |Filters out the symbol identified by the given identifier from the given symbol table.

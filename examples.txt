@@ -19,5 +19,5 @@ program{
         };
     };
     
-    return x;
+    return fak(4);
 }

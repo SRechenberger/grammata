@@ -29,20 +29,17 @@ where
         -- |Successfully parsed
         | Parsed a
 
-    -- |Monad instance of Analysis
     instance Monad (Analysis lex syn) where
         return = Parsed
         Parsed a         >>= f = f a
         LexicalError err >>= _ = LexicalError err
         SyntaxError  err >>= _ = SyntaxError err
 
-    -- |Functor instance of Analysis
     instance Functor (Analysis lex syn) where
         fmap f (Parsed a)         = Parsed (f a)
         fmap _ (LexicalError err) = LexicalError err
         fmap _ (SyntaxError err)  = SyntaxError err
 
-    -- |Applicative instance of Analysis
     instance Applicative (Analysis lex syn) where
         pure = return
         Parsed f         <*> Parsed x         = Parsed (f x)
@@ -51,7 +48,6 @@ where
         _                <*> LexicalError err = LexicalError err
         _                <*> SyntaxError  err = SyntaxError err
 
-    -- |Show instance of Analysis
     instance (Show lex, Show syn, Show a) => Show (Analysis lex syn a) where
         show (LexicalError lex) = "Lexical error at " ++ show lex
         show (SyntaxError  syn) = "Syntactical error at " ++ show syn

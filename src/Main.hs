@@ -18,6 +18,7 @@ where
 
     import System.Environment (getArgs)
 
+    -- |@main@ function.
     main :: IO ()
     main = do 
         args <- getArgs

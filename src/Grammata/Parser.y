@@ -122,19 +122,19 @@ Args : Expr ',' Args                        {$1 : $3}
 Expr :: {AST.Expression}                    
 Expr : id                                   {AST.Variable ((\(Id _ id) -> id) $1)}
      | const                                {AST.Constant ((\(Num _ n) -> n) $1)}
-     | Expr "+" Expr                        {AST.Binary (return (+)) $1 $3}
-     | Expr "-" Expr                        {AST.Binary (return (-)) $1 $3}
-     | Expr "*" Expr                        {AST.Binary (return (*)) $1 $3}
-     | Expr "/" Expr                        {AST.Binary (return (/)) $1 $3}
-     | Expr "div" Expr                      {AST.Binary (return (\a b -> toEnum (fromEnum a `div` fromEnum b))) $1 $3}
-     | Expr "%" Expr                        {AST.Binary (return (\a b -> toEnum (fromEnum a `mod` fromEnum b))) $1 $3}
-     | Expr "<" Expr                        {AST.Binary (return (\a b -> if a < b then 1 else (-1))) $1 $3}
-     | Expr ">" Expr                        {AST.Binary (return (\a b -> if a > b then 1 else (-1))) $1 $3}
-     | Expr "<=" Expr                       {AST.Binary (return (\a b -> if a <= b then 1 else (-1))) $1 $3}
-     | Expr ">=" Expr                       {AST.Binary (return (\a b -> if a >= b then 1 else (-1))) $1 $3}
-     | Expr "==" Expr                       {AST.Binary (return (\a b -> if a == b then 1 else (-1))) $1 $3}
-     | Expr "!=" Expr                       {AST.Binary (return (\a b -> if a /= b then 1 else (-1))) $1 $3}
-     | "-" Expr %prec neg                   {AST.Unary (return (\a -> negate a)) $2}
+     | Expr "+" Expr                        {AST.Binary (+) $1 $3}
+     | Expr "-" Expr                        {AST.Binary (-) $1 $3}
+     | Expr "*" Expr                        {AST.Binary (*) $1 $3}
+     | Expr "/" Expr                        {AST.Binary (/) $1 $3}
+     | Expr "div" Expr                      {AST.Binary (\a b -> toEnum (fromEnum a `div` fromEnum b)) $1 $3}
+     | Expr "%" Expr                        {AST.Binary (\a b -> toEnum (fromEnum a `mod` fromEnum b)) $1 $3}
+     | Expr "<" Expr                        {AST.Binary (\a b -> if a < b then 1 else (-1)) $1 $3}
+     | Expr ">" Expr                        {AST.Binary (\a b -> if a > b then 1 else (-1)) $1 $3}
+     | Expr "<=" Expr                       {AST.Binary (\a b -> if a <= b then 1 else (-1)) $1 $3}
+     | Expr ">=" Expr                       {AST.Binary (\a b -> if a >= b then 1 else (-1)) $1 $3}
+     | Expr "==" Expr                       {AST.Binary (\a b -> if a == b then 1 else (-1)) $1 $3}
+     | Expr "!=" Expr                       {AST.Binary (\a b -> if a /= b then 1 else (-1)) $1 $3}
+     | "-" Expr %prec neg                   {AST.Unary (\a -> negate a) $2}
      | id '(' Args ')'                      {AST.Application ((\(Id _ id) -> id) $1) $3}
      | '(' Expr ')'                         {$2}
 

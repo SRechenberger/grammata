@@ -31,8 +31,8 @@ where
     data Expression =
           Variable Identifier
         | Constant Number
-        | Binary (Execution (Number -> Number -> Number)) Expression Expression
-        | Unary (Execution (Number -> Number)) Expression
+        | Binary (Number -> Number -> Number) Expression Expression
+        | Unary (Number -> Number) Expression
         | Application Identifier [Expression] 
 
     instance Show Expression where
