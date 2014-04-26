@@ -20,9 +20,8 @@ module General
 )
 where
 
-    import Control.Monad.Trans.Either
+    import Control.Monad.Trans.Either (EitherT, runEitherT)
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
-    import Control.Monad.State.Class
     import Control.Monad.IO.Class (liftIO)
 
     type Identifier = String

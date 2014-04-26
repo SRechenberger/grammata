@@ -18,7 +18,7 @@ module Grammata.Parser.Analysis
 )
 where
 
-    import Control.Applicative
+    import Control.Applicative (Applicative, pure, (<*>))
 
     -- |Monad for the parsing process
     data Analysis lex syn a = 

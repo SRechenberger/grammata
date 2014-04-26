@@ -14,16 +14,18 @@ module Grammata
 )
 where
 
-    import Grammata.Parser
-    import Grammata.Parser.AST
-    import Grammata.Parser.Analysis
-    import Grammata.Execution
+    import Grammata.Parser (parse)
+    import Grammata.Parser.AST (Program (Program), 
+        Declaration (Num, Func), 
+        Statement ((:=), For, While, DoWhile, If, Return))
+    import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
+    import Grammata.Execution (declare, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess)
 
-    import General
+    import General (run, ExitState (Failure, Success), Execution)
 
     import Data.Foldable (forM_)
-    import Control.Applicative
-    import Control.Monad.IO.Class
+
+    import Control.Applicative ((<*>), (<$>))
 
     runScript :: String -> IO String
     runScript input = do

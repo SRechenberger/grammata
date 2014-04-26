@@ -13,18 +13,15 @@ Portability : portable
 
 module Grammata.Parser.Lexer 
 (
-    -- * Parser Modules
-    module Grammata.Parser.Token,
-
     -- * Tokenizer
     tokenize
 )
 where
 
-import Grammata.Parser.Analysis
-import Grammata.Parser.Token
+import Grammata.Parser.Analysis (Analysis, lexicalError)
+import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
 
-import Control.Applicative
+import Control.Applicative (pure, (<$>), (<*>))
 
     {-
     alexScanTokens :: String -> Analysis String syn [Token]

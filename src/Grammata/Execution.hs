@@ -23,16 +23,15 @@ module Grammata.Execution
     exitFailing, exitSuccess
 )
 where
-    import Data.List
+    import Data.List (intercalate)
 
-    import Control.Monad.Trans.Either
-    import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
-    import Control.Monad.State.Class
-    import Control.Applicative
-    import Control.Monad.IO.Class
+    import Control.Monad.Trans.Either (left)
+    import Control.Monad.State.Class (get, put)
+    import Control.Applicative ((<*>), (<$>))
+    import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
 
-    import General --(Execution, Identifier, Number, Function, Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success))
+    import General (Execution, Identifier, Number, Function, Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run)
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
 
     -- |Evaluation of arithmetical expressions.

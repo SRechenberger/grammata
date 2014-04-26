@@ -14,9 +14,9 @@ module Main
 )
 where
     
-    import Grammata
+    import Grammata (runScript)
 
-    import System.Environment
+    import System.Environment (getArgs)
 
     main :: IO ()
     main = do 

@@ -5,11 +5,15 @@ module Grammata.Parser
 )
 where
 
-import qualified Grammata.Parser.AST as AST
-import Grammata.Parser.Lexer
-import Grammata.Parser.Analysis
+import Grammata.Parser.Lexer (tokenize)
+import Grammata.Parser.Analysis (Analysis, syntaxError)
+import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
+import qualified Grammata.Parser.AST as AST (Program (Program), 
+	Declaration (Num, Func), 
+	Statement ((:=), For, While, DoWhile, If, Return), 
+	Expression (Variable, Constant, Binary, Unary, Application))
 
-import General
+import General (Identifier)
 
 -- parser produced by Happy Version 1.19.0
 

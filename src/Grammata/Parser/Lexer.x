@@ -11,10 +11,6 @@ Portability : portable
 
 module Grammata.Parser.Lexer 
 (
-    -- * Parser Modules
-    module Grammata.Parser.Analysis,
-    module Grammata.Parser.Token,
-
     -- * Tokenizer
     tokenize
 )
