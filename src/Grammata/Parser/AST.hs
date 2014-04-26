@@ -25,7 +25,7 @@ module Grammata.Parser.AST
 where
 
     import Data.List (intercalate)
-    import General (Execution, Identifier, Number, Function, Type)
+    import General (Identifier, Number, Function, Type)
 
     -- |Arithmetical expressions
     data Expression =
