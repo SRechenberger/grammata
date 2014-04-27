@@ -27,7 +27,7 @@ alexScanTokens str = go (alexStartPos,'\n',[],str)
   where go inp@(pos,_,_,str) =
           case alexScan inp 0 of
                 AlexEOF -> pure []
-                AlexError ((AlexPn _ line column),_,_,_) -> lexicalError $ "lexical error at line " ++ (show line) ++ ", column " ++ (show column)
+                AlexError ((AlexPn _ line column),_,_,_) -> lexicalError $ (show line) ++ ", column " ++ (show column)
                 AlexSkip  inp' len     -> go inp'
                 AlexToken inp' len act -> (:) <$> (pure $ act pos (take len str)) <*> go inp'
     -}

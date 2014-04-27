@@ -66,11 +66,10 @@ where
         symtable <- get
         val <- eval expr
         case lookup id symtable of
-            Nothing                -> exitFailing $ "ERROR " ++ id ++ " undeclared"
             Just (Null:vs)         -> put $ (id, Number val : vs) : removeFromSymboltable id symtable 
             Just (Number _ : vs)   -> put $ (id, Number val : vs) : removeFromSymboltable id symtable
-            Just (Function _ : _)  -> exitFailing $ "ERROR " ++ id ++ " is already a function, thus it cannot be overwrittento a number"
-            Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
+            Just (Function _ : _)  -> exitFailing $ id ++ " is already a function, thus it cannot be overwrittento a number"
+            _                      -> exitFailing $ id ++ " undeclared"
 
     -- |Infix version of assign
     (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
@@ -84,9 +83,8 @@ where
     wipe id = do
         symtable <- get
         case lookup id symtable of
-            Nothing     -> exitFailing $ "ERROR " ++ id ++ " does not exist"
-            Just []     -> exitFailing $ "ERROR no visible variable identified by " ++ id
             Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
+            _           -> exitFailing $ id ++ " does not exist"
 
     -- |Assignes the given function to the top legal scope of the symbol identified by the given identifier.
     assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
@@ -95,11 +93,10 @@ where
     assignFunction id func = do
         symtable <- get
         case lookup id symtable of
-            Nothing                -> exitFailing $ "ERROR " ++ id ++ " undeclared"
             Just (Null:vs)         -> put $ (id, Function func : vs) : removeFromSymboltable id symtable 
-            Just (Number _ : _)    -> exitFailing $ "ERROR " ++ id ++ " is already a number, thus it cannot be overwritten to a function"
+            Just (Number _ : _)    -> exitFailing $ id ++ " is already a number, thus it cannot be overwritten to a function"
             Just (Function _ : vs) -> put $ (id, Function func : vs) : removeFromSymboltable id symtable
-            Just []                -> exitFailing $ "ERROR no legal incarnation of " ++ id
+            _                      -> exitFailing $ id ++ " undeclared"
 
     -- |Infix version of @assignNumber@.
     (§=) :: Identifier -> Function -> Execution ()
@@ -114,8 +111,8 @@ where
         declare id 
         assignFunction id $ \args -> if length ids /= length args 
             then exitFailing $ if length ids < length args 
-                then "ERROR function applied to to many arguments"
-                else "ERROR arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
+                then "function applied to to many arguments"
+                else "arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
             else do
                 forM_ (zip ids args) $ \(id, num) -> do 
                     declare id
@@ -133,9 +130,9 @@ where
     readNumber id = do
         symtable <- get
         case lookup id symtable of
-            Nothing                  -> exitFailing $ "ERROR " ++ id ++ " does not exist"
-            Just []                  -> exitFailing $ "ERROR " ++ id ++ " is totally wiped"
-            Just (Function fun : vs) -> exitFailing $ "ERROR " ++ id ++ " is a function"
+            Nothing                  -> exitFailing $ id ++ " does not exist"
+            Just []                  -> exitFailing $ id ++ " is totally wiped"
+            Just (Function fun : vs) -> exitFailing $ id ++ " is a function"
             Just (Number num : vs)   -> return num
     
     -- |Reads the actually visible function identified by the given identifier.
@@ -144,9 +141,9 @@ where
     readFunction id = do
         symtable <- get
         case lookup id symtable of
-            Nothing                  -> exitFailing $ "ERROR " ++ id ++ " does not exist"
-            Just []                  -> exitFailing $ "ERROR " ++ id ++ " is totally wiped"
-            Just (Number num : vs)   -> exitFailing $ "ERROR " ++ id ++ " is a number"
+            Nothing                  -> exitFailing $ id ++ " does not exist"
+            Just []                  -> exitFailing $ id ++ " is totally wiped"
+            Just (Number num : vs)   -> exitFailing $ id ++ " is a number"
             Just (Function fun : vs) -> return fun
 
     -- |An if .. then .. else .. statement

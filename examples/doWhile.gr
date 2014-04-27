@@ -1,8 +1,19 @@
 program{
-    num x := 0;
-  #  func bla := func () { 
-        x := 2; 
-        return 0;
-    }; #
-    return x + bla();
+    num x := 10;
+    func bla := func (num a, num b) { 
+        num toReturn := 0;
+
+        do{
+            if (a >= b) then {
+                return toReturn;
+            } else {
+                toReturn := toReturn + b;
+                b := b - a;
+            };
+        } while (a < b);
+
+        return toReturn;
+    };
+
+    return x + bla(4,3);
 }
