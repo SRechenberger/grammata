@@ -46,7 +46,7 @@ $sep = [\,\;]
 @key = "program" | "num" | "func" | "for" | "while" | "return" | "if" | "then" | "else" | "do" 
 @id = $alpha+ $alphanum*
 @num = $cipher+ | $cipher+ '.' $cipher+
-@op = "<=" | ">=" | "==" | "<" | ">" | "!=" | "+" | "-" | "*" | "/" | "%" | ":=" | "div"
+@op = "<=" | ">=" | "==" | "<" | ">" | "!=" | "+" | "-" | "*" | "/" | "%" | ":=" | "div" | "||" | "&&" | "!"
 
 token :- 
     $white      ;

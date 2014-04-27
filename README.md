@@ -37,8 +37,12 @@ whereas
     * a division `/`.
     * an integer division `div`.
     * a modulo operation `%` (returns integer values).
-    * a comparisons `<`, `>`, `<=`, `>=`, `==` and `!=` which yield `-1` if as `false` and `1` as `true`.
-  * a unary `-<EXPRESSION>` (can be used to negate logically).
+    * a comparisons `<`, `>`, `<=`, `>=`, `==` and `!=` which yield `0` if as `false` and `1` as `true`.
+    * a logical and `&&`.
+    * a logical or `||`. 
+  * a unary 
+    * `- <EXPRESSION>`.
+    * `not <EXPRESSION>`.
   * a function applications `<ID>( <ARG>* )` whereas `ARG` is an `EXPRESSION`.
 
 `<PARAM>*` and `<ARG>*` are separated by `,`.
