@@ -43,4 +43,11 @@ whereas
 
 `<PARAM>*` and `<ARG>*` are separated by `,`.
 
+Comments are 
+* single line comments initialized with `##`.
+* mulit line comments surrounded by `# ... #`.
+
+Examples
+--------
+
 Example programs are included in the `examples` folder.

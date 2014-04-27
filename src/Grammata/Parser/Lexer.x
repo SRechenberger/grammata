@@ -42,7 +42,7 @@ $alphanum = [a-zA-Z0-9]
 $bracket = [\{\}\(\)]
 $sep = [\,\;]
 
-@comment = \: [^\:] \: | "::" [^\n] 
+@comment = \# ([^\#] | $white)* \# | "##" [^\n]*
 @key = "program" | "num" | "func" | "for" | "while" | "return" | "if" | "then" | "else" | "do" 
 @id = $alpha+ $alphanum*
 @num = $cipher+ | $cipher+ '.' $cipher+

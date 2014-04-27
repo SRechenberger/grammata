@@ -1,9 +1,8 @@
 program{
-    num erg := 1;
-
-    do{
-        erg := erg + erg;
-    } while (erg < 1000);
-
-    return erg;
+    num x := 0;
+  #  func bla := func () { 
+        x := 2; 
+        return 0;
+    }; #
+    return x + bla();
 }
