@@ -32,16 +32,49 @@ where
     import Grammata (runScript)
 
     import System.Environment (getArgs)
+    import System.Console.GetOpt
 
     import Data.List (tails)
+    import Data.Version (showVersion)
+
+    import qualified Paths_grammata as Paths (version)
+
+    data Flags = Flags {
+        version :: Bool
+        }
+
+    defaultFlags :: Flags
+    defaultFlags = Flags {
+        version = False
+        }
+
+    flags :: [OptDescr (Flags -> Flags)]
+    flags = [
+        Option "v?" ["version"]
+            (NoArg (\ opts -> opts { version = True }))
+            "show version number"
+        ]
 
     -- |@main@ function.
     main :: IO ()
     main = do 
         args <- getArgs
-        case args of
-            []  -> putStrLn "ERROR no input file"
-            t:_ -> if ".gr" `elem` tails t 
-                then readFile t >>= runScript >>= putStrLn
-                else putStrLn "ERROR no *.gr file."
+        case getOpt Permute flags args of
+            (o,file,[])   -> if version (foldl (flip id) defaultFlags o) 
+                then 
+                    let 
+                        info :: String
+                        info = "grammata version " ++ showVersion Paths.version ++ " Copyright (C) 2014  Sascha Rechenberger\n" ++
+                            "This program comes with ABSOLUTELY NO WARRANTY.\n" ++
+                            "This is free software, and you are welcome to redistribute it under certain conditions. \n" ++
+                            "For details read the LICENSE file.\n"
+                    in putStrLn info
+                else case file of
+                    file:_ -> if ".gr" `elem` tails file 
+                        then readFile file >>= runScript >>= putStrLn
+                        else putStrLn $ "ERROR " ++ file ++ "is no *.gr file." 
+            (_,_,err)       -> putStrLn (usageInfo ("grammata version " ++ showVersion Paths.version ++ " Copyright (C) 2014 Sascha Rechenberger\n") flags)
+
+
+
 
