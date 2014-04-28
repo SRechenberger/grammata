@@ -37,22 +37,40 @@ where
     import Data.List (tails)
     import Data.Version (showVersion)
 
+    import Control.Monad (when)
+
     import qualified Paths_grammata as Paths (version)
 
     data Flags = Flags {
-        version :: Bool
+        version :: Bool,
+        help :: Bool,
+        exec :: Bool
         }
 
     defaultFlags :: Flags
     defaultFlags = Flags {
-        version = False
+        version = False,
+        help = False,
+        exec = True
         }
+
+    header :: String
+    header = "grammata script interpreter, version " ++ showVersion Paths.version ++ "\nCopyright (C) 2014 Sascha Rechenberger"
+
+    gnu :: String
+    gnu = "This program comes with ABSOLUTELY NO WARRANTY.\n" ++
+        "This is free software, and you are welcome to redistribute it under certain conditions. \n" ++
+        "For details read the GNU GPLv3 in the LICENSE file or at http://www.gnu.org/licenses/gpl-3.0.txt."
+
 
     flags :: [OptDescr (Flags -> Flags)]
     flags = [
-        Option "v?" ["version"]
-            (NoArg (\ opts -> opts { version = True }))
-            "show version number"
+        Option "a?" ["about"]
+            (NoArg (\ opts -> opts { version = True, exec = False }))
+            "show version number",
+        Option "h" ["help"]
+            (NoArg (\ opts -> opts { help = True, exec = False }))
+            "show usage info"
         ]
 
     -- |@main@ function.
@@ -60,20 +78,16 @@ where
     main = do 
         args <- getArgs
         case getOpt Permute flags args of
-            (o,file,[])   -> if version (foldl (flip id) defaultFlags o) 
-                then 
-                    let 
-                        info :: String
-                        info = "grammata version " ++ showVersion Paths.version ++ " Copyright (C) 2014  Sascha Rechenberger\n" ++
-                            "This program comes with ABSOLUTELY NO WARRANTY.\n" ++
-                            "This is free software, and you are welcome to redistribute it under certain conditions. \n" ++
-                            "For details read the LICENSE file.\n"
-                    in putStrLn info
-                else case file of
+            (o,file,[]) -> do
+                let opts = (foldl (flip id) defaultFlags o) 
+                when (version opts) (putStrLn $ header ++ "\n\n" ++ gnu ++ "\n")
+                when (help opts) (putStrLn $ usageInfo header flags)
+                when (exec opts) $ case file of
                     file:_ -> if ".gr" `elem` tails file 
                         then readFile file >>= runScript >>= putStrLn
-                        else putStrLn $ "ERROR " ++ file ++ "is no *.gr file." 
-            (_,_,err)       -> putStrLn (usageInfo ("grammata version " ++ showVersion Paths.version ++ " Copyright (C) 2014 Sascha Rechenberger\n") flags)
+                        else putStrLn $ "ERROR " ++ file ++ "is no *.gr file."
+                    _      -> putStrLn $ "ERROR no file" 
+            (_,_,err)   -> putStrLn $ usageInfo header flags
 
 
 
