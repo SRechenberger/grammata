@@ -129,15 +129,15 @@ where
                 then "function applied to to many arguments"
                 else "arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
             else do
-                forM_ (zip ids args) $ \(id, num) -> do 
-                    declare id
-                    id .= Constant num
-                toReturn <- get >>= liftIO . run body 
+                state <- get 
+                toReturn <- liftIO . flip run state $ do
+                    forM_ (zip ids args) $ \(id, num) -> do 
+                        declare id
+                        id .= Constant num
+                    body 
                 case toReturn of
+                    Success res -> return res
                     Failure err -> exitFailing err
-                    Success res -> do
-                        mapM_ wipe ids
-                        return res
 
     -- |Reads the actually visible number identified by the given identifier.
     readNumber :: Identifier        -- ^ The identifier to be read.
@@ -145,10 +145,9 @@ where
     readNumber id = do
         symtable <- get
         case lookup id symtable of
-            Nothing                  -> exitFailing $ id ++ " does not exist"
-            Just []                  -> exitFailing $ id ++ " is totally wiped"
             Just (Function fun : vs) -> exitFailing $ id ++ " is a function"
             Just (Number num : vs)   -> return num
+            _                        -> exitFailing $ id ++ " does not exist"
     
     -- |Reads the actually visible function identified by the given identifier.
     readFunction :: Identifier           -- ^ The identifier to be read.
