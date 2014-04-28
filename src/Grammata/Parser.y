@@ -86,13 +86,14 @@ import General (Identifier)
     "||"    {Op p "||"}
     not     {Op p "!"}
 
-%left neg
-%left "*" "/" "div" "%"
-%left "+" "-"
-%left "<=" ">=" "<" ">" "==" "!="
-%left "&&" "||" 
-%left ":="
 %left ',' ';'
+%left ":="
+%left "||" 
+%left "&&" 
+%left "<=" ">=" "<" ">" "==" "!="
+%left "+" "-"
+%left "*" "/" "div" "%"
+%left neg
 
 %%
 
