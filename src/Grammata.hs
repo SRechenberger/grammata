@@ -41,6 +41,7 @@ where
 
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
+    import Control.Concurrent.MVar (putMVar, newEmptyMVar)
 
     -- |Runs a grammata script returning the result or error message as a string.
     runScript :: String     -- ^ Script to run.
@@ -51,7 +52,7 @@ where
             LexicalError lex -> return $ "LEXICAL ERROR " ++ lex
             SyntaxError syn  -> return $ "SYNTACTICAL ERROR " ++ syn 
             Parsed program   -> do
-                result <- run (interpret program) []
+                result <- run (interpret program) [] 
                 case result of
                     Failure err -> return $ "RUNTIME ERROR " ++ err
                     Success res -> return . show $ res 
@@ -71,10 +72,11 @@ where
         forM_ e (\e -> eval e >>= (id .=)) 
     interpretDecl (Func id params decls stmts) = do
         declare id
-        static <- get
+        static <- liftIO newEmptyMVar  
         assign id . buildFunction static params $ do 
             mapM_ interpretDecl decls 
             mapM_ interpretStmt stmts 
+        get >>= liftIO . putMVar static
 
     -- |Generates a statement action
     interpretStmt :: Statement      -- ^ Statement-AST

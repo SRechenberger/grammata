@@ -48,6 +48,7 @@ where
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
+    import Control.Concurrent.MVar (MVar, readMVar)
 
     import General (Execution, Identifier, Number, Function, (~~), Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run, get, put)
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
@@ -109,7 +110,7 @@ where
             _           -> exitFailing $ id ++ " does not exist"
 
     -- |Builds the frame for a new function.
-    buildFunction :: [Symbol]
+    buildFunction :: MVar [Symbol]      -- ^ Static scope
                   -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution ()       -- ^ The body of the function.
                   -> Type               -- ^ The resulting function.
@@ -122,7 +123,8 @@ where
                     id .= arg 
                 body
             else do
-                result <- liftIO . flip run static $ do
+                scope <- liftIO . readMVar $ static
+                result <- liftIO . flip run scope $ do
                     forM_ (ids `zip` args) $ \(id, arg) -> do
                         declare id
                         id .= arg 

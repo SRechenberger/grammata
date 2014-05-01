@@ -1,0 +1,9 @@
+program{
+    func f := func (num a, num b, num c){
+        return a + b + c;
+    };
+
+    num ff := f(1,10);
+
+    return ff(100);
+}
