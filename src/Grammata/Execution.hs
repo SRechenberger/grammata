@@ -42,12 +42,12 @@ where
 
     import Data.List (intercalate)
     import Control.Monad.Trans.Either (left)
-    import Control.Monad.State.Class (get, put)
+--    import Control.Monad.State.Class (get, put)
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
 
-    import General (Execution, Identifier, Number, Function, (~~), Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run)
+    import General (Execution, Identifier, Number, Function, (~~), Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run, get, put)
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
 
     -- |Evaluation of arithmetical expressions.
@@ -106,38 +106,26 @@ where
             Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
             _           -> exitFailing $ id ++ " does not exist"
 
-    -- |Assignes the given function to the top legal scope of the symbol identified by the given identifier.
-{-}    assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
-                   -> Function          -- ^ The function to be assigned to the identifier
-                   -> Execution ()      -- ^ Resulting action.
-    assignFunction id func = do
-        symtable <- get
-        case lookup id symtable of
-            Just (Null:vs)         -> put $ (id, Function func : vs) : removeFromSymboltable id symtable 
-            Just (Number _ : _)    -> exitFailing $ id ++ " is already a number, thus it cannot be overwritten to a function"
-            Just (Function _ : vs) -> put $ (id, Function func : vs) : removeFromSymboltable id symtable
-            _                      -> exitFailing $ id ++ " undeclared"
-
-    -- |Infix version of @assignNumber@.
-    (§=) :: Identifier -> Function -> Execution ()
-    (§=) = assignFunction
--}
     -- |Builds the frame for a new function.
-    buildFunction :: Identifier
+    buildFunction :: [Symbol]
                   -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution ()       -- ^ The body of the function.
                   -> Type               -- ^ The resulting function.
-    buildFunction id ids body = Function $ \args -> if length ids /= length args 
-            then exitFailing $ if length ids < length args 
-                then "function applied to to many arguments"
-                else "arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
-            else do
-                state <- get 
-                toReturn <- liftIO . flip run state $ do
-                    forM_ (zip ids args) $ \(id, val) -> do 
+    buildFunction static ids body = Function $ \args -> if length ids /= length args 
+            then if length ids < length args 
+                then exitFailing $ "function applied to to many arguments"
+                else return . Function $ \args' -> return . buildFunction static (drop (length args) ids) $ do
+                    forM_ (ids `zip` args) $ \(id, val) -> do 
                         declare id
                         id .= val
-                    get >>= liftIO . putStrLn . (id ++) . show 
+                    body
+            else do
+            --    state <- get 
+                toReturn <- liftIO . flip run static $ do
+                    forM_ (ids `zip` args) $ \(id, val) -> do 
+                        declare id
+                        id .= val
+                    get >>= liftIO . putStrLn .  show 
                     body 
                 case toReturn of
                     Success res -> return res
@@ -152,17 +140,6 @@ where
             Just (a:_)   -> return a
             _            -> exitFailing $ id ++ " does not exist"
     
-    -- |Reads the actually visible function identified by the given identifier.
-{-    readFunction :: Identifier           -- ^ The identifier to be read.
-                 -> Execution Function   -- ^ Resulting action returning the function to be read.
-    readFunction id = do
-        symtable <- get
-        case lookup id symtable of
-            Nothing                  -> exitFailing $ id ++ " does not exist"
-            Just []                  -> exitFailing $ id ++ " is totally wiped"
-            Just (Number num : vs)   -> exitFailing $ id ++ " is a number"
-            Just (Function fun : vs) -> return fun
--}
     -- |An if .. then .. else .. statement
     ifThenElse :: Expression     -- ^ Condition
                -> Execution ()   -- ^ Action to be executed if the Condition is True.

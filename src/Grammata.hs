@@ -36,7 +36,7 @@ where
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
     import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval)
 
-    import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure))
+    import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure), get)
 
     import Data.Foldable (forM_)
 
@@ -71,7 +71,8 @@ where
         forM_ e (\e -> eval e >>= (id .=)) 
     interpretDecl (Func id params decls stmts) = do
         declare id
-        assign id $ buildFunction id params $ do 
+        static <- get
+        assign id . buildFunction static params $ do 
             mapM_ interpretDecl decls 
             mapM_ interpretStmt stmts 
 

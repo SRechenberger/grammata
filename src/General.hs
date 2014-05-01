@@ -31,11 +31,15 @@ module General
     -- ** Execution Types
     Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~), Symbol, 
     -- ** Execution Monad
-    ExitState(Failure, Success), Execution, run
+    ExitState(Failure, Success), Execution, run,
+
+    -- * StateT
+    get, put
 )
 where
 
     import Control.Monad.Trans.Either (EitherT, runEitherT)
+    import Control.Monad.State.Class (get, put)
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
     import Control.Monad.IO.Class (liftIO)
 
