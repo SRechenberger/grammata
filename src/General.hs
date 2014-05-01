@@ -29,7 +29,7 @@ module General
     -- ** Simple
     Identifier, ErrorMessage,
     -- ** Execution Types
-    Number, Function, Procedure, Type(Null, Number, Function, Procedure), Symbol, 
+    Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~), Symbol, 
     -- ** Execution Monad
     ExitState(Failure, Success), Execution, run
 )
@@ -49,10 +49,10 @@ where
     type Number = Double
 
     -- |The function type.
-    type Function = [Number]            -- ^ The arguments given to the function.
-                 -> Execution Number    -- ^ The resulting action returning the function result.
+    type Function = [Type]            -- ^ The arguments given to the function.
+                 -> Execution Type    -- ^ The resulting action returning the function result.
 
-    type Procedure = [Number]           -- ^ The arguments given to the Procedure.
+    type Procedure = [Type]             -- ^ The arguments given to the Procedure.
                   -> Execution ()       -- ^ The manipulated state.
 
     -- |Union type of a NULL value, Numbers and Functions.
@@ -81,13 +81,20 @@ where
     -- |The final result of a script; it is either a Number or an Error message.
     data ExitState = 
         -- |Successful computation returning a number.
-          Success Number 
+          Success Type 
         -- |An error occured whilst execution.
         | Failure ErrorMessage deriving (Show)
 
     -- |The @Execution@ monad has a symbol table as its state and returns either an error message or a number.
     type Execution a = EitherT ExitState (StateT [Symbol] IO) a
 
+    -- |Checks whether two values are of compatible types.
+    (~~) :: Type -> Type -> Bool
+    Number _    ~~ Number _    = True
+    Function _  ~~ Function _  = True
+    Procedure _ ~~ Procedure _ = True
+    Null        ~~ _           = True
+    _           ~~ _           = False
 
     -- |Executes the interpreted program.
     run :: Execution ()     -- ^ The program to run.

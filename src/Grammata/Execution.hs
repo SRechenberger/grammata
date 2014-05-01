@@ -37,26 +37,35 @@ module Grammata.Execution
     -- ** Termination
     exitFailing, exitSuccess
 )
-where
-    import Data.List (intercalate)
+where    
+    import Prelude hiding (read)
 
+    import Data.List (intercalate)
     import Control.Monad.Trans.Either (left)
     import Control.Monad.State.Class (get, put)
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
 
-    import General (Execution, Identifier, Number, Function, Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run)
+    import General (Execution, Identifier, Number, Function, (~~), Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run)
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
 
     -- |Evaluation of arithmetical expressions.
     eval :: Expression        -- ^ Expression to be evaluated.
-         -> Execution Number  -- ^ Result of the evaluation.
-    eval (Variable id)          = readNumber id
-    eval (Constant num)         = return num
-    eval (Binary func a b)      = func <$> eval a <*> eval b
-    eval (Unary func a)         = func <$> eval a
-    eval (Application fid args) = readFunction fid >>= \f -> mapM eval args >>= f    
+         -> Execution Type    -- ^ Result of the evaluation.
+    eval (Variable id)          = read id 
+    eval (Constant num)         = return . Number $ num
+    eval (Binary func a b)      = func <$> evalNumber a <*> evalNumber b >>= return . Number
+    eval (Unary func a)         = func <$> evalNumber a >>= return . Number
+    eval (Application fid args) = read fid >>= \f -> case f of
+        Function f -> mapM eval args >>= f  
+        _          -> exitFailing $ fid ++ " is no function."
+
+    -- |Tries to evaluate a given expression as a number
+    evalNumber :: Expression -> Execution Number
+    evalNumber a = eval a >>= \e -> case e of
+        Number n -> return n
+        d        -> exitFailing $ show d ++ " is no number."
 
     -- |Filters out the symbol identified by the given identifier from the given symbol table.
     removeFromSymboltable :: Identifier     -- ^ The identifier to be filtered out.
@@ -73,23 +82,19 @@ where
             Nothing -> put $ (id, [Null]):symtable
             Just vs -> put $ (id, Null:vs):removeFromSymboltable id symtable
 
-    -- |Assignes the value of the given Number to the top legal scope of the symbol identified by the given identifier.
-    assign :: Identifier      -- ^ The identifier to which the number is to be assigned.
-           -> Expression          -- ^ The Number to be assigned to the variable.
-           -> Execution ()    -- ^ Resulting action.
-    assign id expr = do
+    -- |Assignes the value of the given Value to the top legal scope of the symbol identified by the given identifier.
+    assign, (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
+                 -> Type            -- ^ The Value to be assigned to the variable.
+                 -> Execution ()    -- ^ Resulting action.
+    assign id val = do
         symtable <- get
-        val <- eval expr
         case lookup id symtable of
-            Just (Null:vs)         -> put $ (id, Number val : vs) : removeFromSymboltable id symtable 
-            Just (Number _ : vs)   -> put $ (id, Number val : vs) : removeFromSymboltable id symtable
-            Just (Function _ : _)  -> exitFailing $ id ++ " is already a function, thus it cannot be overwrittento a number"
-            _                      -> exitFailing $ id ++ " undeclared"
+            Just (a:vs)         -> if a ~~ val 
+                then put $ (id, val: vs) : removeFromSymboltable id symtable 
+                else exitFailing $ show a ++ " and " ++ show val ++ " are of incompatible types."
+            _                   -> exitFailing $ id ++ " undeclared"
 
     -- |Infix version of assign
-    (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
-         -> Expression      -- ^ The Number to be assigned to the variable.
-         -> Execution ()    -- ^ Resulting action.
     (.=) = assign
 
     -- |Wipes the currently visible variable identified by the given identifier.
@@ -102,7 +107,7 @@ where
             _           -> exitFailing $ id ++ " does not exist"
 
     -- |Assignes the given function to the top legal scope of the symbol identified by the given identifier.
-    assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
+{-}    assignFunction :: Identifier        -- ^ The identifier to which the function is to be assigned.
                    -> Function          -- ^ The function to be assigned to the identifier
                    -> Execution ()      -- ^ Resulting action.
     assignFunction id func = do
@@ -116,41 +121,39 @@ where
     -- |Infix version of @assignNumber@.
     (§=) :: Identifier -> Function -> Execution ()
     (§=) = assignFunction
-
+-}
     -- |Builds the frame for a new function.
-    buildFunction :: Identifier         -- ^ Identifier of the Function
+    buildFunction :: Identifier
                   -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution ()       -- ^ The body of the function.
-                  -> Execution ()       -- ^ The resulting action.
-    buildFunction id ids body = do 
-        declare id 
-        assignFunction id $ \args -> if length ids /= length args 
+                  -> Type               -- ^ The resulting function.
+    buildFunction id ids body = Function $ \args -> if length ids /= length args 
             then exitFailing $ if length ids < length args 
                 then "function applied to to many arguments"
                 else "arguments {" ++ (intercalate "," . drop (length args) $ ids) ++ "} are not satisfied"
             else do
                 state <- get 
                 toReturn <- liftIO . flip run state $ do
-                    forM_ (zip ids args) $ \(id, num) -> do 
+                    forM_ (zip ids args) $ \(id, val) -> do 
                         declare id
-                        id .= Constant num
+                        id .= val
+                    get >>= liftIO . putStrLn . (id ++) . show 
                     body 
                 case toReturn of
                     Success res -> return res
                     Failure err -> exitFailing err
 
     -- |Reads the actually visible number identified by the given identifier.
-    readNumber :: Identifier        -- ^ The identifier to be read.
-               -> Execution Number  -- ^ Resulting action returning the number to be read.
-    readNumber id = do
+    read :: Identifier        -- ^ The identifier to be read.
+         -> Execution Type  -- ^ Resulting action returning the number to be read.
+    read id = do
         symtable <- get
         case lookup id symtable of
-            Just (Function fun : vs) -> exitFailing $ id ++ " is a function"
-            Just (Number num : vs)   -> return num
-            _                        -> exitFailing $ id ++ " does not exist"
+            Just (a:_)   -> return a
+            _            -> exitFailing $ id ++ " does not exist"
     
     -- |Reads the actually visible function identified by the given identifier.
-    readFunction :: Identifier           -- ^ The identifier to be read.
+{-    readFunction :: Identifier           -- ^ The identifier to be read.
                  -> Execution Function   -- ^ Resulting action returning the function to be read.
     readFunction id = do
         symtable <- get
@@ -159,14 +162,14 @@ where
             Just []                  -> exitFailing $ id ++ " is totally wiped"
             Just (Number num : vs)   -> exitFailing $ id ++ " is a number"
             Just (Function fun : vs) -> return fun
-
+-}
     -- |An if .. then .. else .. statement
     ifThenElse :: Expression     -- ^ Condition
                -> Execution ()   -- ^ Action to be executed if the Condition is True.
                -> Execution ()   -- ^ Action to be executed if the Condition is False.
                -> Execution ()   -- ^ Resulting action.
     ifThenElse cond actionA actionB = do
-        cond <- eval cond
+        cond <- evalNumber cond
         if cond > 0
             then actionA 
             else actionB
@@ -194,12 +197,12 @@ where
         -> Execution ()             -- ^ Counter dependent action to be iterated
         -> Execution ()             -- ^ Resulting action.
     for var stop step exec = do
-        cond <- (-) <$> eval stop <*> (eval . Variable $ var)
+        cond <- (-) <$> evalNumber stop <*> (evalNumber . Variable $ var)
         when (cond > 0) $ do
             exec
-            i <- eval . Variable $ var
-            s <- eval step 
-            var .= (Constant $ i + s)
+            i <- evalNumber . Variable $ var
+            s <- evalNumber step 
+            var .= (Number $ i + s)
             for var stop step exec
 
     -- |Terminates the execution with an error message.

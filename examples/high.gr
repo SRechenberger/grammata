@@ -1,0 +1,14 @@
+program{
+    func fhigh := func (num a, num b){
+        func flow := func (num x){
+            return a + b + x;
+        };
+
+        return flow;
+    };
+
+    num f;
+
+    f := fhigh(1,1);
+    return f(1);
+}

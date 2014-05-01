@@ -34,9 +34,9 @@ where
         Declaration (Num, Func), 
         Statement ((:=), For, While, DoWhile, If, Return))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
-    import Grammata.Execution (declare, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess)
+    import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval)
 
-    import General (run, ExitState (Failure, Success), Execution)
+    import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure))
 
     import Data.Foldable (forM_)
 
@@ -68,19 +68,21 @@ where
                   -> Execution ()   -- ^ Declaring function
     interpretDecl (Num id e) = do
         declare id
-        forM_ e (id .=) 
-    interpretDecl (Func id params decls stmts) = buildFunction id params $ do 
-        mapM_ interpretDecl decls 
-        mapM_ interpretStmt stmts 
+        forM_ e (\e -> eval e >>= (id .=)) 
+    interpretDecl (Func id params decls stmts) = do
+        declare id
+        assign id $ buildFunction id params $ do 
+            mapM_ interpretDecl decls 
+            mapM_ interpretStmt stmts 
 
     -- |Generates a statement action
     interpretStmt :: Statement      -- ^ Statement-AST
                   -> Execution ()   -- ^ Action executing the statement
-    interpretStmt (id := expr) = id .= expr 
+    interpretStmt (id := expr)            = eval expr >>= (id .=)
     interpretStmt (For id end step stmts) = for id end step . mapM_ interpretStmt $ stmts
-    interpretStmt (While cond stmts) = while cond . mapM_ interpretStmt $ stmts
-    interpretStmt (DoWhile cond stmts) = doWhile cond . mapM_ interpretStmt $ stmts
-    interpretStmt (If cond th el) = ifThenElse cond (mapM_ interpretStmt th) (mapM_ interpretStmt el)
-    interpretStmt (Return e) = exitSuccess e
+    interpretStmt (While cond stmts)      = while cond . mapM_ interpretStmt $ stmts
+    interpretStmt (DoWhile cond stmts)    = doWhile cond . mapM_ interpretStmt $ stmts
+    interpretStmt (If cond th el)         = ifThenElse cond (mapM_ interpretStmt th) (mapM_ interpretStmt el)
+    interpretStmt (Return e)              = exitSuccess e
 
 
