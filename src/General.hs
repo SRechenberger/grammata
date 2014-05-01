@@ -29,7 +29,7 @@ module General
     -- ** Simple
     Identifier, ErrorMessage,
     -- ** Execution Types
-    Number, Function, Type(Null, Number, Function), Symbol, 
+    Number, Function, Procedure, Type(Null, Number, Function, Procedure), Symbol, 
     -- ** Execution Monad
     ExitState(Failure, Success), Execution, run
 )
@@ -52,6 +52,9 @@ where
     type Function = [Number]            -- ^ The arguments given to the function.
                  -> Execution Number    -- ^ The resulting action returning the function result.
 
+    type Procedure = [Number]           -- ^ The arguments given to the Procedure.
+                  -> Execution ()       -- ^ The manipulated state.
+
     -- |Union type of a NULL value, Numbers and Functions.
     data Type =
         -- |NULL value.
@@ -60,11 +63,14 @@ where
         | Number Number
         -- |A function mapping from a list of numbers to one number.
         | Function Function
+        -- |A procedure manipulating the state.
+        | Procedure Procedure
 
     instance Show Type where
         show Null = "NULL"
         show (Number n) = show n
         show (Function _) = "function"
+        show (Procedure _) = "procedure"
 
     {- |An element of the symbol table, 
         which is identified by a unique identifier and contains a stack of values of type @Type@, 
