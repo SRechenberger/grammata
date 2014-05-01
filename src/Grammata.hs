@@ -35,12 +35,12 @@ where
         Statement ((:=), For, While, DoWhile, If, Return))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
     import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval)
-
     import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure), get)
 
     import Data.Foldable (forM_)
 
     import Control.Applicative ((<*>), (<$>))
+    import Control.Monad.IO.Class (liftIO)
 
     -- |Runs a grammata script returning the result or error message as a string.
     runScript :: String     -- ^ Script to run.

@@ -40,6 +40,8 @@ module Grammata.Execution
 where    
     import Prelude hiding (read)
 
+    import Debug.Trace
+
     import Data.List (intercalate)
     import Control.Monad.Trans.Either (left)
 --    import Control.Monad.State.Class (get, put)
@@ -111,25 +113,24 @@ where
                   -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution ()       -- ^ The body of the function.
                   -> Type               -- ^ The resulting function.
-    buildFunction static ids body = Function $ \args -> if length ids /= length args 
-            then if length ids < length args 
-                then exitFailing $ "function applied to to many arguments"
-                else return . Function $ \args' -> return . buildFunction static (drop (length args) ids) $ do
-                    forM_ (ids `zip` args) $ \(id, val) -> do 
-                        declare id
-                        id .= val
-                    body
+    buildFunction static ids body = Function $ \args -> if length args > length ids
+        then exitFailing $ "function applied of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
+        else if length args < length ids 
+            then return . buildFunction static (drop (length args) ids) $ do
+                forM_ (ids `zip` args) $ \(id, arg) -> do
+                    declare id
+                    id .= arg 
+                body
             else do
-            --    state <- get 
-                toReturn <- liftIO . flip run static $ do
-                    forM_ (ids `zip` args) $ \(id, val) -> do 
+                result <- liftIO . flip run static $ do
+                    forM_ (ids `zip` args) $ \(id, arg) -> do
                         declare id
-                        id .= val
-                    get >>= liftIO . putStrLn .  show 
-                    body 
-                case toReturn of
-                    Success res -> return res
-                    Failure err -> exitFailing err
+                        id .= arg 
+                    body
+                case result of
+                    Success r -> return r
+                    Failure e -> exitFailing e
+            
 
     -- |Reads the actually visible number identified by the given identifier.
     read :: Identifier        -- ^ The identifier to be read.
