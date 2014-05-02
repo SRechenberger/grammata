@@ -1,13 +1,13 @@
 program{
-    func fhigh := func (num a, num b){
-        func flow := func (num x){
+    var fhigh := func (var a, var b){
+        var flow := func (var x){
             return a + b + x;
         };
 
         return flow;
     };
 
-    num f;
+    var f;
 
     f := fhigh(1,1);
     return f(1);

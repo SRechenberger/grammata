@@ -1,5 +1,5 @@
 program {
-    func fak := func (num n){
+    var fak := func (var n){
         if (n <= 0) then {
             return 1;
         } else {
@@ -7,7 +7,7 @@ program {
         };
     };
     
-    func fakTail := func (num n, num akk){
+    var fakTail := func (var n, var akk){
         if (n <= 0) then {
             return akk;
         } else {
@@ -15,9 +15,9 @@ program {
         };
     };
     
-    func fakIt := func (num n){
-        num akk := 1;
-        num i := 1;
+    var fakIt := func (var n){
+        var akk := 1;
+        var i := 1;
         
         for(i;n+1;1){
             akk := akk * i;

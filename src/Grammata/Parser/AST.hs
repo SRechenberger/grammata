@@ -29,7 +29,7 @@ module Grammata.Parser.AST
     Program (Program),
 
     -- ** Declarations
-    Declaration (Num, Func),
+    Declaration (Var, Num, Func),
 
     -- ** Statements
     Statement ((:=), For, While, DoWhile, If, Return),
@@ -65,13 +65,16 @@ where
 
     -- |Declarations of functions and numbers
     data Declaration = 
-        -- |num <Identifier> [:= <Expression>];
-          Num Identifier (Maybe Expression)
+        -- |var <Identifier>;
+          Var Identifier
+        -- |num <Identifier> := <Expression>;
+        | Num Identifier Expression
         -- |func <Identifier> := func (num <Identifier>,...) {...};
         | Func Identifier [Identifier] [Declaration] [Statement]
 
     instance Show Declaration where
-        show (Num id me) = id ++ case me of {Nothing -> ""; Just e -> show e} ++ ";"
+        show (Var id) = "var " ++ id
+        show (Num id e) = "num " ++ id ++ " " ++ show e 
         show (Func id ps ds ss) = id ++ "(num " ++ intercalate ", num " (map show ps) ++ ") {" ++ unwords (map show ds) ++ " " ++ unwords (map show ss) ++ "}"
 
     -- |Program Statements

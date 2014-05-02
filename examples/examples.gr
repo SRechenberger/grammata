@@ -1,9 +1,9 @@
 program{
-    num a := 3;
-    num b := 4;
-    num c;
+    var a := 3;
+    var b := 4;
+    var c;
 
-    func fak := func (num n) {
+    var fak := func (var n) {
         if (n <= 0) then {
             return 1;
         } else {
@@ -11,7 +11,7 @@ program{
         };
     };
 
-    func ackermann := func (num a, num b){
+    var ackermann := func (num a, num b){
         if (a == 0) then {
             return b + 1;
         } else {

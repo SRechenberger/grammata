@@ -58,7 +58,7 @@ $bracket = [\{\}\(\)]
 $sep = [\,\;]
 
 @comment = \# ([^\#] | $white)* \# | "##" [^\n]*
-@key = "program" | "num" | "func" | "for" | "while" | "return" | "if" | "then" | "else" | "do" 
+@key = "program" | "num" | "func" | "for" | "while" | "return" | "if" | "then" | "else" | "do" | "var"
 @id = $alpha+ $alphanum*
 @num = $cipher+ | $cipher+ '.' $cipher+
 @op = "<=" | ">=" | "==" | "<" | ">" | "!=" | "+" | "-" | "*" | "/" | "%" | ":=" | "div" | "||" | "&&" | "!"

@@ -1,5 +1,5 @@
 program{
-    func fib := func(num n){
+    var fib := func(var n){
         if (n <= 1 || n <= 2) then {
             return 1;
         } else {
@@ -8,5 +8,5 @@ program{
     };
 
     
-    return fib(10);
+    return fib(100);
 }

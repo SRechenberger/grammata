@@ -31,7 +31,7 @@ where
 
     import Grammata.Parser (parse)
     import Grammata.Parser.AST (Program (Program), 
-        Declaration (Num, Func), 
+        Declaration (Var, Num, Func), 
         Statement ((:=), For, While, DoWhile, If, Return))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
     import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval)
@@ -67,9 +67,10 @@ where
     -- |Generates a declaration action
     interpretDecl :: Declaration    -- ^ Declaration-AST
                   -> Execution ()   -- ^ Declaring function
+    interpretDecl (Var id) = declare id
     interpretDecl (Num id e) = do
         declare id
-        forM_ e (\e -> eval e >>= (id .=)) 
+        eval e >>= assign id
     interpretDecl (Func id params decls stmts) = do
         declare id
         static <- liftIO newEmptyMVar  

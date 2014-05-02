@@ -1,5 +1,5 @@
 program{
-    func ggT := func(num a, num b){
+    var ggT := func(var a, var b){
         if (a == 0) then {
             return b;
         } else {

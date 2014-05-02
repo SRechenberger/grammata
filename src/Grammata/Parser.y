@@ -34,7 +34,7 @@ import Grammata.Parser.Lexer (tokenize)
 import Grammata.Parser.Analysis (Analysis, syntaxError)
 import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
 import qualified Grammata.Parser.AST as AST (Program (Program), 
-    Declaration (Num, Func), 
+    Declaration (Var, Num, Func), 
     Statement ((:=), For, While, DoWhile, If, Return), 
     Expression (Variable, Constant, Binary, Unary, Application))
 
@@ -56,6 +56,7 @@ import General (Identifier)
     ';'     {Sep p ';'}
 
     program {Key p "program"}
+    var     {Key p "var"}
     num     {Key p "num"}
     func    {Key p "func"}
     for     {Key p "for"}
@@ -110,13 +111,12 @@ Params : Param ',' Params                   {$1 : $3}
        |                                    {[]}
 
 Param :: {Identifier}                       
-Param : num id                              {(\(Id _ id) -> id) $2}
-      | func id                             {% syntaxError $ "Higher order functions are not implemented yet. Error at " ++ show $1}
+Param : var id                              {(\(Id _ id) -> id) $2}
 
 Decl :: {AST.Declaration}
-Decl : num id                               {AST.Num ((\(Id _ id) -> id) $2) Nothing}
-     | num id ":=" Expr                     {AST.Num ((\(Id _ id) -> id) $2) (Just $4)}
-     | func id ":=" func '(' Params ')' '{' Decls Stmts '}' 
+Decl : var id                               {AST.Var ((\(Id _ id) -> id) $2)}
+     | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> id) $2) $4}
+     | var id ":=" func '(' Params ')' '{' Decls Stmts '}' 
                                             {AST.Func ((\(Id _ id) -> id) $2) $6 $9 $10}
 
 Stmts :: {[AST.Statement]}

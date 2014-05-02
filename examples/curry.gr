@@ -1,9 +1,9 @@
 program{
-    func f := func (num a, num b, num c){
+    var f := func (var a, var b, var c){
         return a + b + c;
     };
 
-    num ff := f(1,10);
+    var ff := f(1,10);
 
     return ff(100);
 }

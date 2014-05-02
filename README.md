@@ -9,9 +9,9 @@ Syntax
 Every *program* has the stucture `program { <DECLARAION>* <STATEMENT>* }`,
 whereas 
 * **`DECLARATION`** is 
-  * an uninitialized number `num <ID>;`.
-  * an initialize number `num <ID> := <NUMBER>;`.
-  * a function `func <ID> := func ( <PARAM>* ) { <DECLARATION>* <STATEMENT>* };`.
+  * an uninitialized variable `var <ID>;`.
+  * a number initialized variable `var <ID> := <NUMBER>;`.
+  * a function initialized variable `var <ID> := func ( <PARAM>* ) { <DECLARATION>* <STATEMENT>* };`.
 
 * **`STATEMENT`** is
   * an assignment `<ID> := <NUMBER>;`
@@ -26,7 +26,7 @@ whereas
   * a return `return <TORETURN>`, which will either print the result of the program or return a value to the calling function; however, the value of the `EXPRESSION` `TORETURN` is returned.
 * **`ID`** is an identifier beginning with a lower or uppercase letter and consisting of lower and uppercase letters and ciphers.
 * **`NUMBER`** is a number literal, consisting of two blocks of ciphers seprated by a `.` (`123.456`) or one block of ciphers (`123`).
-* a **`PARAM`** has the form `num <ID>` or `func <ID>` (higher order functions are **not** implemented yet) separated by `,`.
+* a **`PARAM`** has the form `var <ID>` separated by `,`.
 * an **`EXPRESSION`** is 
   * an identifiers `ID`.
   * a constants `NUMBER`.

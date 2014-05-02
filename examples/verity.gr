@@ -1,6 +1,6 @@
 program{
-    num a := 10;
-    num b := 11;
+    var a := 10;
+    var b := 11;
     
     return !(1 && 1);
 }

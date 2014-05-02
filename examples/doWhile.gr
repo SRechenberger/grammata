@@ -1,7 +1,7 @@
 program{
-    num x := 10;
-    func bla := func (num a, num b) { 
-        num toReturn := 0;
+    var x := 10;
+    var bla := func (var a, var b) { 
+        var toReturn := 0;
 
         do{
             if (a >= b) then {
