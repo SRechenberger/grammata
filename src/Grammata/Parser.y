@@ -114,19 +114,19 @@ Param :: {Identifier}
 Param : var id                              {(\(Id _ id) -> id) $2}
 
 Decl :: {AST.Declaration}
-Decl : var id                               {AST.Var ((\(Id _ id) -> id) $2)}
-     | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> id) $2) $4}
+Decl : var id                               {AST.Var ((\(Id _ id) -> Left id) $2)}
+     | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> Left id) $2) $4}
      | var id ":=" func '(' Params ')' '{' Decls Stmts '}' 
-                                            {AST.Func ((\(Id _ id) -> id) $2) $6 $9 $10}
+                                            {AST.Func ((\(Id _ id) -> Left id) $2) $6 $9 $10}
 
 Stmts :: {[AST.Statement]}
 Stmts : Stmt ';' Stmts                      {$1 : $3}
       |                                     {[]}
 
 Stmt :: {AST.Statement}
-Stmt : id ":=" Expr                         {((\(Id _ id) -> id) $1) AST.:= $3}
+Stmt : id ":=" Expr                         {((\(Id _ id) -> Left id) $1) AST.:= $3}
      | for '(' id ';' Expr ';' Expr ')' '{' Stmts '}'
-                                            {AST.For ((\(Id _ id) -> id) $3) $5 $7 $10}
+                                            {AST.For ((\(Id _ id) -> Left id) $3) $5 $7 $10}
      | while '(' Expr ')' '{' Stmts '}'     {AST.While $3 $6}
      | do '{' Stmts '}' while '(' Expr ')'  {AST.DoWhile $7 $3}
      | if '(' Expr ')' then '{' Stmts '}'   {AST.If $3 $7 []}
@@ -140,7 +140,7 @@ Args : Expr ',' Args                        {$1 : $3}
      |                                      {[]}
 
 Expr :: {AST.Expression}                    
-Expr : id                                   {AST.Variable ((\(Id _ id) -> id) $1)}
+Expr : id                                   {AST.Variable ((\(Id _ id) -> Left id) $1)}
      | const                                {AST.Constant ((\(Num _ n) -> n) $1)}
      | Expr "+" Expr                        {AST.Binary (+) $1 $3}
      | Expr "-" Expr                        {AST.Binary (-) $1 $3}
@@ -158,7 +158,7 @@ Expr : id                                   {AST.Variable ((\(Id _ id) -> id) $1
      | Expr "||" Expr                       {AST.Binary (\a b -> if a > 0 || b > 0 then 1 else 0) $1 $3}
      | "-" Expr %prec neg                   {AST.Unary (\a -> negate a) $2}
      | not Expr %prec neg                   {AST.Unary (\a -> if a > 0 then 0 else 1) $2}
-     | id '(' Args ')'                      {AST.Application ((\(Id _ id) -> id) $1) $3}
+     | id '(' Args ')'                      {AST.Application ((\(Id _ id) -> Left id) $1) $3}
      | '(' Expr ')'                         {$2}
 
 {

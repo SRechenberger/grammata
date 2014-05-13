@@ -31,17 +31,20 @@ where
 
     import Grammata.Parser (parse)
     import Grammata.Parser.AST (Program (Program), 
-        Declaration (Var, Num, Func), 
+        Declaration (Var, Num, Func, Proc), 
         Statement ((:=), For, While, DoWhile, If, Return))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
-    import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval)
+    import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval, buildProcedure)
     import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure), get)
 
     import Data.Foldable (forM_)
 
+    import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
+
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Concurrent.MVar (putMVar, newEmptyMVar)
+
 
     -- |Runs a grammata script returning the result or error message as a string.
     runScript :: String     -- ^ Script to run.
@@ -60,24 +63,30 @@ where
     -- |Generates the program action
     interpret :: Program        -- ^ Program-AST
               -> Execution ()   -- ^ Executable Action
-    interpret (Program decls stmts) = do 
-        mapM_ interpretDecl decls 
+    interpret (Program decls stmts) = do
+        mapM_ (interpretDecl [static]) decls 
         mapM_ interpretStmt stmts 
 
     -- |Generates a declaration action
-    interpretDecl :: Declaration    -- ^ Declaration-AST
-                  -> Execution ()   -- ^ Declaring function
-    interpretDecl (Var id) = declare id
-    interpretDecl (Num id e) = do
+    interpretDecl :: [MVar [Symbol]] -- ^ Scope
+                  -> Declaration     -- ^ Declaration-AST
+                  -> Execution ()    -- ^ Declaring function
+    interpretDecl _ (Var id) = declare id
+    interpretDecl _ (Num id e) = do
         declare id
         eval e >>= assign id
-    interpretDecl (Func id params decls stmts) = do
-        declare id
-        static <- liftIO newEmptyMVar  
-        assign id . buildFunction static params $ do 
-            mapM_ interpretDecl decls 
+    interpretDecl scopes (Func id params decls stmts) = do
+        declare id 
+        assign id . buildFunction scopes params $ do 
+            mapM_ (interpretDecl (static:scopes)) decls 
             mapM_ interpretStmt stmts 
-        get >>= liftIO . putMVar static
+    interpretDecl scopes (Proc id params decls stmts) = do
+        declare id
+        assign id . buildProcedure scopes params $ do 
+            mapM_ (interpretDecl (static:scopes)) decls 
+            mapM_ interpretStmt stmts 
+
+
 
     -- |Generates a statement action
     interpretStmt :: Statement      -- ^ Statement-AST

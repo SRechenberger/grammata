@@ -29,7 +29,7 @@ module General
     -- ** Simple
     Identifier, ErrorMessage,
     -- ** Execution Types
-    Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~), Symbol, 
+    Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~),
     -- ** Execution Monad
     ExitState(Failure, Success), Execution, run,
 
@@ -37,11 +37,17 @@ module General
     get, put
 )
 where
+    import Debug.Trace
+
+    import General.Environment (Environment, emptyEnv, writeEnv, readEnv)
 
     import Control.Monad.Trans.Either (EitherT, runEitherT)
     import Control.Monad.State.Class (get, put)
     import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
     import Control.Monad.IO.Class (liftIO)
+    import Control.Concurrent.MVar (MVar, newMVar, readMVar, putMVar, takeMVar, isEmptyMVar)
+    import Control.Applicative ((<$>), (<*>), pure)
+    import Control.Monad (when)
 
     -- |Identifies a value in the symbol table.
     type Identifier = String
@@ -76,12 +82,6 @@ where
         show (Function _) = "function"
         show (Procedure _) = "procedure"
 
-    {- |An element of the symbol table, 
-        which is identified by a unique identifier and contains a stack of values of type @Type@, 
-        of which every element represents a variable identified by the identifier in a scope of the program.
-    -}
-    type Symbol = (Identifier, [Type])
-
     -- |The final result of a script; it is either a Number or an Error message.
     data ExitState = 
         -- |Successful computation returning a number.
@@ -90,7 +90,7 @@ where
         | Failure ErrorMessage deriving (Show)
 
     -- |The @Execution@ monad has a symbol table as its state and returns either an error message or a number.
-    type Execution a = EitherT ExitState (StateT [Symbol] IO) a
+    type Execution a = EitherT ExitState (StateT (Environment Identifier Type) IO) a
 
     -- |Checks whether two values are of compatible types.
     (~~) :: Type -> Type -> Bool
@@ -101,9 +101,9 @@ where
     _           ~~ _           = False
 
     -- |Executes the interpreted program.
-    run :: Execution ()     -- ^ The program to run.
-        -> [Symbol]         -- ^ The initial symbol table
-        -> IO ExitState     -- ^ The result of an error message.
+    run :: Execution ()                  -- ^ The program to run.
+        -> (Environment Identifier Type) -- ^ The initial symbol table
+        -> IO ExitState                  -- ^ The result of an error message.
     run exe init = do
         exit <- flip evalStateT init . runEitherT $ exe
         case exit of

@@ -29,7 +29,7 @@ module Grammata.Execution
     -- ** Variables
     declare, assign, (.=), eval,
     -- ** Construction of functions
-    buildFunction,
+    buildFunction, buildProcedure,
 
     -- * Program control
     -- ** Control Structures
@@ -42,27 +42,37 @@ where
 
     import Debug.Trace
 
-    import Data.List (intercalate)
+    import Data.List (intercalate, deleteBy)
     import Control.Monad.Trans.Either (left)
 --    import Control.Monad.State.Class (get, put)
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
-    import Control.Concurrent.MVar (MVar, readMVar)
+    import Control.Concurrent.MVar (MVar, readMVar, newEmptyMVar, takeMVar, putMVar, newMVar, isEmptyMVar)
 
-    import General (Execution, Identifier, Number, Function, (~~), Symbol, Type(Null, Number, Function), ErrorMessage, ExitState(Failure, Success), run, get, put)
+    import General (Execution, 
+        Identifier, 
+        Number, 
+        Function, 
+        (~~), 
+        Type(Null, Number, Function, Procedure), 
+        ErrorMessage, 
+        ExitState(Failure, Success), 
+        run, get, put)
+    import General.Environment (writeEnv, uncond, readEnv)
     import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
 
     -- |Evaluation of arithmetical expressions.
     eval :: Expression        -- ^ Expression to be evaluated.
          -> Execution Type    -- ^ Result of the evaluation.
-    eval (Variable id)          = read id 
-    eval (Constant num)         = return . Number $ num
-    eval (Binary func a b)      = func <$> evalNumber a <*> evalNumber b >>= return . Number
-    eval (Unary func a)         = func <$> evalNumber a >>= return . Number
-    eval (Application fid args) = read fid >>= \f -> case f of
+    eval (Variable (Right id))            = read id 
+    eval (Constant num)                   = return . Number $ num
+    eval (Binary func a b)                = func <$> evalNumber a <*> evalNumber b >>= return . Number
+    eval (Unary func a)                   = func <$> evalNumber a >>= return . Number
+    eval (Application (Right fpath) args) = read fpath >>= \f -> case f of
         Function f -> mapM eval args >>= f  
-        _          -> exitFailing $ fid ++ " is no function."
+        _          -> exitFailing $ intercalate "." fpath ++ " is no function."
+    eval invalidExpr                      = exitFailing $ "invalidExpr " ++ show invalidExpr
 
     -- |Tries to evaluate a given expression as a number
     evalNumber :: Expression -> Execution Number
@@ -70,78 +80,70 @@ where
         Number n -> return n
         d        -> exitFailing $ show d ++ " is no number."
 
-    -- |Filters out the symbol identified by the given identifier from the given symbol table.
-    removeFromSymboltable :: Identifier     -- ^ The identifier to be filtered out.
-                          -> [Symbol]       -- ^ The symbol table containing the symbol to be filtered out.
-                          -> [Symbol]       -- ^ The symbol table not containing the symbol anymore.
-    removeFromSymboltable id = filter (\(id', _) -> id /= id')
-
     -- |If a symbol identified by the given identifier already exists, a new scope will be added, otherwise the a symbol will be added; however, it will be initiated with NULL.
-    declare :: Identifier     -- ^ The identifier to be declared.
-            -> Execution ()   -- ^ Resulting action.
-    declare id = do
-        symtable <- get
-        case lookup id symtable of
-            Nothing -> put $ (id, [Null]):symtable
-            Just vs -> put $ (id, Null:vs):removeFromSymboltable id symtable
+    declare :: [Identifier] -- ^ The identifier to be declared.
+            -> Execution () -- ^ Resulting action.
+    declare path = do
+        env' <- writeEnv path uncond Null <$> get
+        case env' of 
+            Nothing   -> exitFailing $ "declaration of " ++ intercalate "." path ++ " failed."
+            Just env' -> put env'
 
     -- |Assignes the value of the given Value to the top legal scope of the symbol identified by the given identifier.
-    assign, (.=) :: Identifier      -- ^ The identifier to which the number is to be assigned.
+    assign, (.=) :: [Identifier]    -- ^ The identifier to which the number is to be assigned.
                  -> Type            -- ^ The Value to be assigned to the variable.
                  -> Execution ()    -- ^ Resulting action.
-    assign id val = do
-        symtable <- get
-        case lookup id symtable of
-            Just (a:vs)         -> if a ~~ val 
-                then put $ (id, val: vs) : removeFromSymboltable id symtable 
-                else exitFailing $ show a ++ " and " ++ show val ++ " are of incompatible types."
-            _                   -> exitFailing $ id ++ " undeclared"
+    assign path val = do
+        env' <- writeEnv path (~~) val <$> get
+        case env' of 
+            Nothing   -> exitFailing $ "declaration of " ++ intercalate "." path ++ " failed. Incompatible type."
+            Just env' -> put env'        
 
+    infix 1 .=
     -- |Infix version of assign
     (.=) = assign
 
-    -- |Wipes the currently visible variable identified by the given identifier.
-    wipe :: Identifier      -- ^ The identifier whichs actually visible value is to be wiped.
-         -> Execution ()    -- ^ Resulting action.
-    wipe id = do
-        symtable <- get
-        case lookup id symtable of
-            Just (_:vs) -> put $ (id, vs) : removeFromSymboltable id symtable
-            _           -> exitFailing $ id ++ " does not exist"
-
     -- |Builds the frame for a new function.
-    buildFunction :: MVar [Symbol]      -- ^ Static scope
+    buildFunction :: [Identifier]       -- ^ Environmental path of the function.
                   -> [Identifier]       -- ^ List of the function parameter names. 
                   -> Execution ()       -- ^ The body of the function.
                   -> Type               -- ^ The resulting function.
-    buildFunction static ids body = Function $ \args -> if length args > length ids
-        then exitFailing $ "function applied of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
+    buildFunction path ids body = Function $ \args -> if length args > length ids
+        then exitFailing $ "function of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
         else if length args < length ids 
-            then return . buildFunction static (drop (length args) ids) $ do
-                forM_ (ids `zip` args) $ \(id, arg) -> do
-                    declare id
-                    id .= arg 
+            then return . buildFunction path (drop (length args) ids) $ do
+                forM_ (ids `zip` args) $ \(id, arg) -> (path ++ [id]) .= arg 
                 body
             else do
-                scope <- liftIO . readMVar $ static
+                scope <- get
                 result <- liftIO . flip run scope $ do
-                    forM_ (ids `zip` args) $ \(id, arg) -> do
-                        declare id
-                        id .= arg 
+                    forM_ (ids `zip` args) $ \(id, arg) -> trace (id ++ " := " ++ show arg) (path ++ [id] .= arg) 
                     body
                 case result of
                     Success r -> return r
                     Failure e -> exitFailing e
-            
+
+
+    buildProcedure :: [Identifier]       -- ^ Environmental path of the procedure.
+                   -> [Identifier]       -- ^ List of the function parameter names. 
+                   -> Execution ()       -- ^ The body of the function.
+                   -> Type               -- ^ The resulting function.
+    buildProcedure path ids body = Procedure $ \args -> if length args /= length ids
+        then exitFailing $ "procedure of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
+        else do      
+            forM_ (ids `zip` args) $ \(id, arg) -> do
+                (path ++ [id]) .= arg 
+            body
+
 
     -- |Reads the actually visible number identified by the given identifier.
-    read :: Identifier        -- ^ The identifier to be read.
+    read :: [Identifier]    -- ^ The path of the value to be read.
          -> Execution Type  -- ^ Resulting action returning the number to be read.
-    read id = do
-        symtable <- get
-        case lookup id symtable of
-            Just (a:_)   -> return a
-            _            -> exitFailing $ id ++ " does not exist"
+    read path = do
+        datum <- readEnv path <$> get
+        case datum of 
+            Nothing -> exitFailing $ intercalate "." path ++ " undeclared."
+            Just d  -> return d
     
     -- |An if .. then .. else .. statement
     ifThenElse :: Expression     -- ^ Condition
@@ -171,16 +173,16 @@ where
         ifThenElse cond (doWhile cond exe) (return ())
 
     -- |A for loop
-    for :: Identifier               -- ^ Counter variable
+    for :: [Identifier]             -- ^ Counter variable path
         -> Expression               -- ^ Stop value
         -> Expression               -- ^ Step size
         -> Execution ()             -- ^ Counter dependent action to be iterated
         -> Execution ()             -- ^ Resulting action.
     for var stop step exec = do
-        cond <- (-) <$> evalNumber stop <*> (evalNumber . Variable $ var)
+        cond <- (-) <$> evalNumber stop <*> (evalNumber . Variable . Right $ var)
         when (cond > 0) $ do
             exec
-            i <- evalNumber . Variable $ var
+            i <- evalNumber . Variable . Right $ var
             s <- evalNumber step 
             var .= (Number $ i + s)
             for var stop step exec

@@ -26,5 +26,5 @@ program {
         return akk;
     };
     
-    return fakIt(200);
+    return fakIt(20);
 }

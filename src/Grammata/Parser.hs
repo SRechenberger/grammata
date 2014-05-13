@@ -1195,7 +1195,7 @@ happyReduction_22  =  HappyAbsSyn11
 happyReduce_23 = happySpecReduce_1  12 happyReduction_23
 happyReduction_23 (HappyTerminal happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Variable ((\(Id _ id) -> id) happy_var_1)
+		 (AST.Variable ((\(Id _ id) -> Left id) happy_var_1)
 	)
 happyReduction_23 _  = notHappyAtAll 
 
@@ -1355,7 +1355,7 @@ happyReduction_41 (_ `HappyStk`
 	(HappyTerminal happy_var_1) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (AST.Application ((\(Id _ id) -> id) happy_var_1) happy_var_3
+		 (AST.Application ((\(Id _ id) -> Left id) happy_var_1) happy_var_3
 	) `HappyStk` happyRest
 
 happyReduce_42 = happySpecReduce_3  12 happyReduction_42

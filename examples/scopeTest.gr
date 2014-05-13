@@ -1,0 +1,12 @@
+program {
+
+    var o := 0;
+    
+    var f := func(var x) {
+        return x + o;
+    };
+
+    var x := f(1);
+
+    return x + o; ## Should yield 1 and not 2
+}
