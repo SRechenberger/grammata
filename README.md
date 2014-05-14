@@ -1,7 +1,8 @@
-grammata
+grammata 
 ========
 
-**Grammata** is a simple script language interpreted and run as a monadic structure.
+**grammata** is a simple script language interpreted and run as a monadic structure.
+In future it will support polyparadigmatic features such as functional expressions and logical knowledge bases and queries to use them.
 
 Syntax
 ------
@@ -49,7 +50,7 @@ whereas
 
 Comments are 
 * single line comments initialized with `##`.
-* mulit line comments surrounded by `# ... #`.
+* multi line comments surrounded by `# ... #`.
 
 Examples
 --------
