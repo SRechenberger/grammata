@@ -29,7 +29,10 @@ module General.Expression
     Expression (Variable, Constant, Binary, Unary, Application),
     
     -- * Classes to evaluate @Expression@s.
-    Identifier (load), Value (checkUnary, checkBinary, applyable, apply), FailableMonad (failEval)
+    Identifier (load), Value (checkUnary, checkBinary, applyable, apply), FailableMonad (failEval),
+    
+    -- * Evaluation function.
+    eval
 )
 where
 
