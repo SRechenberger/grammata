@@ -39,6 +39,7 @@ import qualified Grammata.Parser.AST as AST (Program (Program),
     Expression (Variable, Constant, Binary, Unary, Application))
 
 import General (Identifier)
+import General.Expression (Expression (..))
 
 }
 
@@ -134,31 +135,31 @@ Stmt : id ":=" Expr                         {((\(Id _ id) -> Left id) $1) AST.:=
                                             {AST.If $3 $7 $11}
      | return Expr                          {AST.Return $2}
 
-Args :: {[AST.Expression]} 
+Args :: {[Expression Identifier Type]} 
 Args : Expr ',' Args                        {$1 : $3}
      | Expr                                 {[$1]}
      |                                      {[]}
 
-Expr :: {AST.Expression}                    
-Expr : id                                   {AST.Variable ((\(Id _ id) -> Left id) $1)}
-     | const                                {AST.Constant ((\(Num _ n) -> n) $1)}
-     | Expr "+" Expr                        {AST.Binary (+) $1 $3}
-     | Expr "-" Expr                        {AST.Binary (-) $1 $3}
-     | Expr "*" Expr                        {AST.Binary (*) $1 $3}
-     | Expr "/" Expr                        {AST.Binary (/) $1 $3}
-     | Expr "div" Expr                      {AST.Binary (\a b -> toEnum (fromEnum a `div` fromEnum b)) $1 $3}
-     | Expr "%" Expr                        {AST.Binary (\a b -> toEnum (fromEnum a `mod` fromEnum b)) $1 $3}
-     | Expr "<" Expr                        {AST.Binary (\a b -> if a < b then 1 else 0) $1 $3}
-     | Expr ">" Expr                        {AST.Binary (\a b -> if a > b then 1 else 0) $1 $3}
-     | Expr "<=" Expr                       {AST.Binary (\a b -> if a <= b then 1 else 0) $1 $3}
-     | Expr ">=" Expr                       {AST.Binary (\a b -> if a >= b then 1 else 0) $1 $3}
-     | Expr "==" Expr                       {AST.Binary (\a b -> if a == b then 1 else 0) $1 $3}
-     | Expr "!=" Expr                       {AST.Binary (\a b -> if a /= b then 1 else 0) $1 $3}
-     | Expr "&&" Expr                       {AST.Binary (\a b -> if a > 0 && b > 0 then 1 else 0) $1 $3}
-     | Expr "||" Expr                       {AST.Binary (\a b -> if a > 0 || b > 0 then 1 else 0) $1 $3}
-     | "-" Expr %prec neg                   {AST.Unary (\a -> negate a) $2}
-     | not Expr %prec neg                   {AST.Unary (\a -> if a > 0 then 0 else 1) $2}
-     | id '(' Args ')'                      {AST.Application ((\(Id _ id) -> Left id) $1) $3}
+Expr :: {Expression Identifier Type}                    
+Expr : id                                   {Variable ((\(Id _ id) -> id) $1)}
+     | const                                {Constant ((\(Num _ n) -> Number $ n) $1)}
+     | Expr "+" Expr                        {Binary (+) $1 $3}
+     | Expr "-" Expr                        {Binary (-) $1 $3}
+     | Expr "*" Expr                        {Binary (*) $1 $3}
+     | Expr "/" Expr                        {Binary (/) $1 $3}
+     | Expr "div" Expr                      {Binary (\a b -> toEnum (fromEnum a `div` fromEnum b)) $1 $3}
+     | Expr "%" Expr                        {Binary (\a b -> toEnum (fromEnum a `mod` fromEnum b)) $1 $3}
+     | Expr "<" Expr                        {Binary (\a b -> if a < b then 1 else 0) $1 $3}
+     | Expr ">" Expr                        {Binary (\a b -> if a > b then 1 else 0) $1 $3}
+     | Expr "<=" Expr                       {Binary (\a b -> if a <= b then 1 else 0) $1 $3}
+     | Expr ">=" Expr                       {Binary (\a b -> if a >= b then 1 else 0) $1 $3}
+     | Expr "==" Expr                       {Binary (\a b -> if a == b then 1 else 0) $1 $3}
+     | Expr "!=" Expr                       {Binary (\a b -> if a /= b then 1 else 0) $1 $3}
+     | Expr "&&" Expr                       {Binary (\a b -> if a > 0 && b > 0 then 1 else 0) $1 $3}
+     | Expr "||" Expr                       {Binary (\a b -> if a > 0 || b > 0 then 1 else 0) $1 $3}
+     | "-" Expr %prec neg                   {Unary (\a -> negate a) $2}
+     | not Expr %prec neg                   {Unary (\a -> if a > 0 then 0 else 1) $2}
+     | id '(' Args ')'                      {Application ((\(Id _ id) -> Left id) $1) $3}
      | '(' Expr ')'                         {$2}
 
 {
