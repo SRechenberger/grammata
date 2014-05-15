@@ -33,16 +33,13 @@ module Grammata.Parser.AST
 
     -- ** Statements
     Statement ((:=), For, While, DoWhile, If, Return),
-
-    -- ** Expression Type
-    Expression (Variable, Constant, Binary, Unary, Application),
 )
 where
 
     import Data.List (intercalate)
     import General (Identifier, Number, Function, Type)
+    import General.Expression 
 
-    type Path = Either Identifier [Identifier]
 
     -- |Resolves the simple @Identifier@s to lists of @Identifier@s navigating through the scopes.
     resolvePaths :: Program -- ^ Unresolved AST.
@@ -71,26 +68,6 @@ where
                 If expr stmtsT stmtsF           -> If expr (map (resolveStmts hither) stmtsT) (map (resolveStmts hither) stmtsF)
                 return                          -> return 
 
-    -- |Arithmetical expressions
-    data Expression =
-          Variable Path
-        | Constant Number
-        | Binary (Number -> Number -> Number) Expression Expression
-        | Unary (Number -> Number) Expression
-        | Application Path [Expression] 
-
-    instance Show Expression where
-        show (Variable id) = case id of
-            Left id    -> "id (" ++ id ++ ")"
-            Right path -> "id (" ++ intercalate "." path ++ ")"
-        show (Constant c)  = "const (" ++ show c ++ ")"
-        show (Binary _ e1 e2) = "(" ++ show e1 ++ " ° " ++ show e2 ++ ")"
-        show (Unary _ e) = "(*" ++ show e ++ ")"
-        show (Application fid es) = name ++ "(" ++ intercalate "," (map show es) ++ ")"
-            where 
-                name = case fid of
-                    Left id    -> id
-                    Right path -> intercalate "." path
 
     -- |program {...}
     data Program = Program [Declaration] [Statement]
@@ -99,15 +76,15 @@ where
         show (Program ds ss) = "program { " ++ unwords (map show ds) ++ "; " ++ unwords (map show ss) ++ "}"
 
     -- |Declarations of functions and numbers
-    data Declaration = 
+    data Declaration id = 
         -- |var <Identifier>;
-          Var Path
+          Var id
         -- |var <Identifier> := <Expression>;
-        | Num Path Expression
+        | Num id (Expression id Type)
         -- |var <Identifier> := func (num <Identifier>,...) {...};
-        | Func Path [Identifier] [Declaration] [Statement]
+        | Func id [id] [Declaration] [Statement]
         -- |var <Identifier> := proc (num <Identifier>,...) {...};
-        | Proc Path [Identifier] [Declaration] [Statement]
+        | Proc id [id] [Declaration] [Statement]
 
     instance Show Declaration where
         show (Var (Left id)) = "var " ++ id
@@ -121,19 +98,19 @@ where
 
     infix 1 :=
     -- |Program Statements
-    data Statement = 
+    data Statement id = 
         -- |<Identifier> := <Expression>;
-          Path := Expression
+          id := (Expression id Type)
         -- |for (<Identifier>; <Expression>; <Expression>) {...};
-        | For Path Expression Expression [Statement]
+        | For id (Expression id Type) (Expression id Type) [Statement id]
         -- |while (<Expression>) {...};
-        | While Expression [Statement]
+        | While (Expression id Type) [Statement id]
         -- |do {...} while (<Expression>);
-        | DoWhile Expression [Statement]
+        | DoWhile (Expression id Type) [Statement id]
         -- |if (<Expression>) then {...} [else {...}];
-        | If Expression [Statement] [Statement]
+        | If (Expression id Type) [Statement id] [Statement id]
         -- |return <Expression>;
-        | Return Expression
+        | Return (Expression id Type)
 
     instance Show Statement where
         show ((Left id) := e) = id ++ " := " ++ show e ++ ";"

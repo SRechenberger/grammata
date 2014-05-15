@@ -23,16 +23,19 @@ You should have received a copy of the GNU General Public License
 along with grammata. If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
+
 module General.Expression
 (
     -- * @Expression@ type.
     Expression (Variable, Constant, Binary, Unary, Application),
     
     -- * Classes to evaluate @Expression@s.
-    Identifier (load), Value (checkUnary, checkBinary, applyable, apply), FailableMonad (failEval),
+    EvalApparatus (load, apply, failEval, eval),
+    
+    Value (checkUnary, checkBinary, applyable)
     
     -- * Evaluation function.
-    eval
 )
 where
 
@@ -40,15 +43,35 @@ where
     import Data.List (intercalate)
 
     -- |Classifies a type as an identifier usable to evaluate expressions.
-    class Eq i => Identifier i where
+    class (Value v, Eq i, Monad m) => EvalApparatus m i v | m -> i v where
         -- |Yields a value from a given @Identifier@.
-        load :: (FailableMonad m, Value v) => i -> m v
-    
-    -- |Classifies a monad (and functor) as failable in case of an evaluation fail.
-    class (Monad m, Functor m) => FailableMonad m where
+        load :: i -> m v
         -- |Fails the evaluation.
         failEval :: String -> m a
-        
+        -- |Applies a function to a given list of parameters.
+        apply :: v -> [Expression i v] -> m v      
+        -- |Evaluates an @Expression@.
+        eval :: Expression i v  -- ^ Expression to evaluate.
+             -> m v             -- ^ Result in a failable Monad.
+        eval (Variable id) = load id
+        eval (Constant val) = return val
+        eval (Binary f e1 e2) = do 
+            val1 <- eval e1
+            val2 <- eval e2
+            if val1 `checkBinary` val2
+                then return $ f val1 val2
+                else failEval $ "Incompatible values."
+        eval (Unary f e) = do
+            val <- eval e
+            if checkUnary val 
+                then return $ f val
+                else failEval $ "Cannot do unary application."
+        eval (Application id exprs) = do
+            f <- load id
+            if applyable f 
+                then apply f exprs
+                else failEval $ "Cannot do application."
+            
     -- |Classifies a value usable to evaluate expressions.
     class Value v where
         -- |Checks whether two values are compatible to be evaluated with a binary operator.
@@ -56,31 +79,7 @@ where
         -- |Checks whether a unary operator can be applied to the value.
         checkUnary :: v -> Bool
         -- |Checks whether a value is an appliable function.
-        applyable :: v -> Bool
-        -- |Applies a function to a given list of parameters.
-        apply :: (FailableMonad m, Identifier i)=> v -> [Expression i v] -> m v
-    
-    -- |Evaluates an @Expression@.
-    eval :: (FailableMonad m, Identifier i, Value v) => Expression i v  -- ^ Expression to evaluate.
-                                                     -> m v             -- ^ Result in a failable Monad.
-    eval (Variable id) = load id
-    eval (Constant val) = return val
-    eval (Binary f e1 e2) = do 
-        val1 <- eval e1
-        val2 <- eval e2
-        if val1 `checkBinary` val2 
-            then return $ f val1 val2
-            else failEval $ "Incompatible values."
-    eval (Unary f e) = do
-        val <- eval e
-        if checkUnary val 
-            then return $ f val
-            else failEval $ "Cannot do unary application."
-    eval (Application id exprs) = do
-        f <- load id
-        if applyable f 
-            then apply f exprs
-            else failEval $ "Cannot do application."
+        applyable :: v -> Bool 
     
     -- |Arithmetical expressions
     data Expression identifier value =

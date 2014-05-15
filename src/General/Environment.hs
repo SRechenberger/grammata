@@ -48,7 +48,8 @@ where
 
     -- |Path in an @Environment@.
     type Path key = [key]
-
+    
+    
     -- |@Environment@ type, respresenting the static structure, with dynamic incarnation management.
     data Environment key content = Env {
             local  :: [(key, [content])],    -- ^ Locally visible values. Dynamically stacked.

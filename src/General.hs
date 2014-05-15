@@ -1,6 +1,6 @@
 {-|
 Module      : General
-Description : General grammata-Script utilities
+Description : grammata-Script utilities and general definitions
 Maintainer  : sascha.rechenberger@uni-ulm.de
 Stability   : stable
 Portability : portable
@@ -31,26 +31,31 @@ module General
     -- ** Execution Types
     Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~),
     -- ** Execution Monad
-    ExitState(Failure, Success), Execution, run,
-
-    -- * StateT
-    get, put
+    ExitState(Failure, Success), Grammata, run,
+    -- *** StateT
+    get, put,
+    -- *** EitherT
+    left
 )
 where
     import Debug.Trace
 
     import General.Environment (Environment, emptyEnv, writeEnv, readEnv)
-
-    import Control.Monad.Trans.Either (EitherT, runEitherT)
-    import Control.Monad.State.Class (get, put)
-    import Control.Monad.Trans.State.Lazy (StateT, runStateT, execStateT, evalStateT)
-    import Control.Monad.IO.Class (liftIO)
-    import Control.Concurrent.MVar (MVar, newMVar, readMVar, putMVar, takeMVar, isEmptyMVar)
-    import Control.Applicative ((<$>), (<*>), pure)
-    import Control.Monad (when)
+    import General.Expression (
+        Expression (Variable, Constant, Binary, Unary, Application),
+        Identifier (load), 
+        Value (checkUnary, checkBinary, applyable, apply), 
+        FailableMonad (failEval))
+    import General.Execution (Execution, get, put, left)
+    
+    -- |Script interpretation monad.
+    type Grammata a = Execution (Environment Identifier Type) Type ErrorMessage a
 
     -- |Identifies a value in the symbol table.
     type Identifier = String
+    
+    -- |Path of a value in an @Environment@.
+    type Path = [Identifier]
 
     -- |Error messages thrown.
     type ErrorMessage = String
@@ -62,6 +67,7 @@ where
     type Function = [Type]            -- ^ The arguments given to the function.
                  -> Execution Type    -- ^ The resulting action returning the function result.
 
+    -- |The procedure type.
     type Procedure = [Type]             -- ^ The arguments given to the Procedure.
                   -> Execution ()       -- ^ The manipulated state.
 
@@ -82,15 +88,21 @@ where
         show (Function _) = "function"
         show (Procedure _) = "procedure"
 
-    -- |The final result of a script; it is either a Number or an Error message.
-    data ExitState = 
-        -- |Successful computation returning a number.
-          Success Type 
-        -- |An error occured whilst execution.
-        | Failure ErrorMessage deriving (Show)
-
-    -- |The @Execution@ monad has a symbol table as its state and returns either an error message or a number.
-    type Execution a = EitherT ExitState (StateT (Environment Identifier Type) IO) a
+    instance EvalApparatus Grammata Path Type where
+        load p = get >>= readEnv p
+        failEval = left . Failure
+        apply (Function f) exprs = f <$> mapM eval exprs
+        
+    instance Value Type where
+        checkUnary (Number _) = True
+        checkUnary _          = False
+        
+        checkBinary (Number _) (Number _) = True
+        checkBinary _ _ = False
+        
+        applyable (Function _) = True
+        applyable _ = False
+         
 
     -- |Checks whether two values are of compatible types.
     (~~) :: Type -> Type -> Bool
@@ -100,12 +112,4 @@ where
     Null        ~~ _           = True
     _           ~~ _           = False
 
-    -- |Executes the interpreted program.
-    run :: Execution ()                  -- ^ The program to run.
-        -> (Environment Identifier Type) -- ^ The initial symbol table
-        -> IO ExitState                  -- ^ The result of an error message.
-    run exe init = do
-        exit <- flip evalStateT init . runEitherT $ exe
-        case exit of
-            Left e -> return e
-            Right _ -> return . Failure $ "FATAL ERROR unexpected termination"
+    
