@@ -35,7 +35,7 @@ module General.Environment
     enterScope, leaveScope,
 
     -- ** Finding stuff
-    findDeclarations,
+    findDeclarations, exists,
 
     -- * Utilities
     uncond

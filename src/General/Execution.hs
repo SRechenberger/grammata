@@ -32,7 +32,9 @@ module General.Execution
     -- ** MonadEither functions
     left,
     -- * Exit state
-    ExitState (Success, Failure)    
+    ExitState (Success, Failure), 
+    -- * Running a script
+    run    
 )
 where   
 

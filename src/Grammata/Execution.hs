@@ -44,7 +44,6 @@ where
 
     import Data.List (intercalate, deleteBy)
     import Control.Monad.Trans.Either (left)
---    import Control.Monad.State.Class (get, put)
     import Control.Applicative ((<*>), (<$>))
     import Control.Monad.IO.Class (liftIO)
     import Control.Monad (forM_, when)
@@ -187,12 +186,4 @@ where
             var .= (Number $ i + s)
             for var stop step exec
 
-    -- |Terminates the execution with an error message.
-    exitFailing :: ErrorMessage     -- ^ The message returned on failure.
-                -> Execution a      -- ^ The terminated action.
-    exitFailing = left . Failure
-
-    -- |Terminates the execution successfully returning a number.
-    exitSuccess :: Expression       -- ^ The value returned on success.
-                -> Execution a      -- ^ The terminated action.
-    exitSuccess e = left . Success =<< eval e
+   
