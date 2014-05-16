@@ -36,24 +36,25 @@ import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
 import qualified Grammata.Parser.AST as AST (Program (Program), 
     Declaration (Var, Num, Func), 
     Statement ((:=), For, While, DoWhile, If, Return), 
-    Expression (Variable, Constant, Binary, Unary, Application))
+    Arithmetical (Id, Con, Bin, Un, App))
 
-import General (Identifier)
+import General (Identifier, Number)
+import General.Expression (Expression (..))
 
 -- parser produced by Happy Version 1.19.0
 
 data HappyAbsSyn 
 	= HappyTerminal (Token)
 	| HappyErrorToken Int
-	| HappyAbsSyn4 (AST.Program)
-	| HappyAbsSyn5 ([AST.Declaration])
+	| HappyAbsSyn4 (AST.Program Identifier (AST.Arithmetical Identifier Number String))
+	| HappyAbsSyn5 ([AST.Declaration Identifier (AST.Arithmetical Identifier Number String)])
 	| HappyAbsSyn6 ([Identifier])
 	| HappyAbsSyn7 (Identifier)
-	| HappyAbsSyn8 (AST.Declaration)
-	| HappyAbsSyn9 ([AST.Statement])
-	| HappyAbsSyn10 (AST.Statement)
-	| HappyAbsSyn11 ([AST.Expression])
-	| HappyAbsSyn12 (AST.Expression)
+	| HappyAbsSyn8 (AST.Declaration Identifier (AST.Arithmetical Identifier Number String))
+	| HappyAbsSyn9 ([AST.Statement Identifier (AST.Arithmetical Identifier Number String)])
+	| HappyAbsSyn10 (AST.Statement Identifier (AST.Arithmetical Identifier Number String))
+	| HappyAbsSyn11 ([AST.Arithmetical Identifier Number String])
+	| HappyAbsSyn12 (AST.Arithmetical Identifier Number String)
 
 {- to allow type-synonyms as our monads (likely
  - with explicitly-specified bind and return)
@@ -1195,14 +1196,14 @@ happyReduction_22  =  HappyAbsSyn11
 happyReduce_23 = happySpecReduce_1  12 happyReduction_23
 happyReduction_23 (HappyTerminal happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Variable ((\(Id _ id) -> Left id) happy_var_1)
+		 (AST.Id ((\(Id _ id) -> id) happy_var_1)
 	)
 happyReduction_23 _  = notHappyAtAll 
 
 happyReduce_24 = happySpecReduce_1  12 happyReduction_24
 happyReduction_24 (HappyTerminal happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Constant ((\(Num _ n) -> n) happy_var_1)
+		 (AST.Con ((\(Num _ n) -> n) happy_var_1)
 	)
 happyReduction_24 _  = notHappyAtAll 
 
@@ -1211,7 +1212,7 @@ happyReduction_25 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (+) happy_var_1 happy_var_3
+		 (AST.Bin "+" happy_var_1 happy_var_3
 	)
 happyReduction_25 _ _ _  = notHappyAtAll 
 
@@ -1220,7 +1221,7 @@ happyReduction_26 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (-) happy_var_1 happy_var_3
+		 (AST.Bin "-" happy_var_1 happy_var_3
 	)
 happyReduction_26 _ _ _  = notHappyAtAll 
 
@@ -1229,7 +1230,7 @@ happyReduction_27 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (*) happy_var_1 happy_var_3
+		 (AST.Bin "*" happy_var_1 happy_var_3
 	)
 happyReduction_27 _ _ _  = notHappyAtAll 
 
@@ -1238,7 +1239,7 @@ happyReduction_28 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (/) happy_var_1 happy_var_3
+		 (AST.Bin "/" happy_var_1 happy_var_3
 	)
 happyReduction_28 _ _ _  = notHappyAtAll 
 
@@ -1247,7 +1248,7 @@ happyReduction_29 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> toEnum (fromEnum a `div` fromEnum b)) happy_var_1 happy_var_3
+		 (AST.Bin "div" happy_var_1 happy_var_3
 	)
 happyReduction_29 _ _ _  = notHappyAtAll 
 
@@ -1256,7 +1257,7 @@ happyReduction_30 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> toEnum (fromEnum a `mod` fromEnum b)) happy_var_1 happy_var_3
+		 (AST.Bin "%" happy_var_1 happy_var_3
 	)
 happyReduction_30 _ _ _  = notHappyAtAll 
 
@@ -1265,7 +1266,7 @@ happyReduction_31 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a < b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "<" happy_var_1 happy_var_3
 	)
 happyReduction_31 _ _ _  = notHappyAtAll 
 
@@ -1274,7 +1275,7 @@ happyReduction_32 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a > b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin ">" happy_var_1 happy_var_3
 	)
 happyReduction_32 _ _ _  = notHappyAtAll 
 
@@ -1283,7 +1284,7 @@ happyReduction_33 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a <= b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "<=" happy_var_1 happy_var_3
 	)
 happyReduction_33 _ _ _  = notHappyAtAll 
 
@@ -1292,7 +1293,7 @@ happyReduction_34 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a >= b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin ">=" happy_var_1 happy_var_3
 	)
 happyReduction_34 _ _ _  = notHappyAtAll 
 
@@ -1301,7 +1302,7 @@ happyReduction_35 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a == b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "==" happy_var_1 happy_var_3
 	)
 happyReduction_35 _ _ _  = notHappyAtAll 
 
@@ -1310,7 +1311,7 @@ happyReduction_36 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a /= b then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "!=" happy_var_1 happy_var_3
 	)
 happyReduction_36 _ _ _  = notHappyAtAll 
 
@@ -1319,7 +1320,7 @@ happyReduction_37 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a > 0 && b > 0 then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "&&" happy_var_1 happy_var_3
 	)
 happyReduction_37 _ _ _  = notHappyAtAll 
 
@@ -1328,7 +1329,7 @@ happyReduction_38 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyAbsSyn12  happy_var_1)
 	 =  HappyAbsSyn12
-		 (AST.Binary (\a b -> if a > 0 || b > 0 then 1 else 0) happy_var_1 happy_var_3
+		 (AST.Bin "||" happy_var_1 happy_var_3
 	)
 happyReduction_38 _ _ _  = notHappyAtAll 
 
@@ -1336,7 +1337,7 @@ happyReduce_39 = happySpecReduce_2  12 happyReduction_39
 happyReduction_39 (HappyAbsSyn12  happy_var_2)
 	_
 	 =  HappyAbsSyn12
-		 (AST.Unary (\a -> negate a) happy_var_2
+		 (AST.Un "-" happy_var_2
 	)
 happyReduction_39 _ _  = notHappyAtAll 
 
@@ -1344,7 +1345,7 @@ happyReduce_40 = happySpecReduce_2  12 happyReduction_40
 happyReduction_40 (HappyAbsSyn12  happy_var_2)
 	_
 	 =  HappyAbsSyn12
-		 (AST.Unary (\a -> if a > 0 then 0 else 1) happy_var_2
+		 (AST.Un "not" happy_var_2
 	)
 happyReduction_40 _ _  = notHappyAtAll 
 
@@ -1355,7 +1356,7 @@ happyReduction_41 (_ `HappyStk`
 	(HappyTerminal happy_var_1) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (AST.Application ((\(Id _ id) -> Left id) happy_var_1) happy_var_3
+		 (AST.App ((\(Id _ id) ->  id) happy_var_1) happy_var_3
 	) `HappyStk` happyRest
 
 happyReduce_42 = happySpecReduce_3  12 happyReduction_42
@@ -1431,7 +1432,7 @@ happySeq = happyDontSeq
 
 
 -- |Parses the script, returning the AST
-parse :: String -> Analysis String String (AST.Program)
+parse :: String -> Analysis String String (AST.Program Identifier (AST.Arithmetical Identifier Number String))
 parse input = tokenize input >>= parseGrammata
 
 -- |Function invoked on error.

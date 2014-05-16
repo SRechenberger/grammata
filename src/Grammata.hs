@@ -32,11 +32,12 @@ where
     import Grammata.Parser (parse)
     import Grammata.Parser.AST (Program (Program), 
         Declaration (Var, Num, Func, Proc), 
-        Statement ((:=), For, While, DoWhile, If, Return))
+        Statement ((:=), For, While, DoWhile, If, Return),
+        Arithmetical (Id, Con, Bin, Un, App))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
-    import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval, buildProcedure)
-    import General (run, ExitState (Failure, Success), Execution, Type (Null, Number, Function, Procedure), get)
-
+ --   import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval, buildProcedure)
+    import General (runScript, ExitState (Failure, Success), Grammata, Type (Null, Number, Function, Procedure), getTable, putTable, Identifier, Number)
+    import General.Environment (initializeEnv, Environment)
     import Data.Foldable (forM_)
 
     import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
@@ -45,7 +46,7 @@ where
     import Control.Monad.IO.Class (liftIO)
     import Control.Concurrent.MVar (putMVar, newEmptyMVar)
 
-
+{-}
     -- |Runs a grammata script returning the result or error message as a string.
     runScript :: String     -- ^ Script to run.
               -> IO String  -- ^ Result.
@@ -58,44 +59,17 @@ where
                 result <- run (interpret program) [] 
                 case result of
                     Failure err -> return $ "RUNTIME ERROR " ++ err
-                    Success res -> return . show $ res 
+                    Success res -> return . show $ res -}
 
-    -- |Generates the program action
-    interpret :: Program        -- ^ Program-AST
-              -> Execution ()   -- ^ Executable Action
-    interpret (Program decls stmts) = do
-        mapM_ (interpretDecl [static]) decls 
-        mapM_ interpretStmt stmts 
-
-    -- |Generates a declaration action
-    interpretDecl :: [MVar [Symbol]] -- ^ Scope
-                  -> Declaration     -- ^ Declaration-AST
-                  -> Execution ()    -- ^ Declaring function
-    interpretDecl _ (Var id) = declare id
-    interpretDecl _ (Num id e) = do
-        declare id
-        eval e >>= assign id
-    interpretDecl scopes (Func id params decls stmts) = do
-        declare id 
-        assign id . buildFunction scopes params $ do 
-            mapM_ (interpretDecl (static:scopes)) decls 
-            mapM_ interpretStmt stmts 
-    interpretDecl scopes (Proc id params decls stmts) = do
-        declare id
-        assign id . buildProcedure scopes params $ do 
-            mapM_ (interpretDecl (static:scopes)) decls 
-            mapM_ interpretStmt stmts 
-
-
-
-    -- |Generates a statement action
-    interpretStmt :: Statement      -- ^ Statement-AST
-                  -> Execution ()   -- ^ Action executing the statement
-    interpretStmt (id := expr)            = eval expr >>= (id .=)
-    interpretStmt (For id end step stmts) = for id end step . mapM_ interpretStmt $ stmts
-    interpretStmt (While cond stmts)      = while cond . mapM_ interpretStmt $ stmts
-    interpretStmt (DoWhile cond stmts)    = doWhile cond . mapM_ interpretStmt $ stmts
-    interpretStmt (If cond th el)         = ifThenElse cond (mapM_ interpretStmt th) (mapM_ interpretStmt el)
-    interpretStmt (Return e)              = exitSuccess e
-
-
+    getStaticStructure :: Program Identifier (Arithmetical Identifier Number String) -> [([Identifier], Type)]
+    getStaticStructure (Program decls _) = analyze [] decls
+        where
+            analyze :: [Identifier] -> [Declaration Identifier (Arithmetical Identifier Number String)] -> [([Identifier], Type)]
+            analyze _ [] = []
+            analyze hither (decl:decls) = s ++ analyze hither decls 
+                where 
+                    s = case decl of
+                        Var id            -> [(hither ++ [id], Null)]
+                        Num id _          -> [(hither ++ [id], Null)]
+                        Func id _ decls _ -> (hither ++ [id], Null):analyze (hither ++ [id]) decls
+                        Proc id _ decls _ -> (hither ++ [id], Null):analyze (hither ++ [id]) decls

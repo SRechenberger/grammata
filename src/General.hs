@@ -33,11 +33,10 @@ module General
     -- ** Execution Types
     Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~),
     -- ** Execution Monad
-    ExitState(Failure, Success), Grammata,
-    -- *** StateT
-    get, put,
-    -- *** EitherT
-    left
+    ExitState(Failure, Success), Grammata, runScript,
+    -- ** Grammata functions
+    
+    getTable, putTable,
 )
 where
     import Debug.Trace
@@ -51,7 +50,6 @@ where
     import Control.Applicative ((<$>))
 
     import Data.List (intercalate)
-    import Data.Maybe (fromJust)
     
     -- |Script interpretation monad.
     newtype Grammata z = Grammata {runGrammata :: Execution (Environment Identifier Type) Type ErrorMessage z}
@@ -59,6 +57,7 @@ where
     instance Monad Grammata where
         return = Grammata . return 
         m >>= f = Grammata $ runGrammata m >>= runGrammata . f
+        fail = exitFailing
 
     -- |Gets the held @Environment@.
     getTable :: Grammata (Environment Identifier Type) -- ^ The held @Environment@.
@@ -99,6 +98,8 @@ where
     data Type =
         -- |NULL value.
           Null 
+        -- |Formal initial value.
+        | Init (Expression Path Type)
         -- |A floating point number.
         | Number Number
         -- |A function mapping from a list of numbers to one number.
@@ -108,16 +109,12 @@ where
 
     instance Show Type where
         show Null = "NULL"
-        show (Number n) = show n
+        show (Number e) = show e
         show (Function _) = "function"
         show (Procedure _) = "procedure"
 
     instance EvalApparatus Grammata Path Type where
-        load p = do 
-            sTable <- getTable 
-            case readEnv p sTable of
-                Nothing -> failEval $ show p ++ " not found."
-                Just d  -> return d
+        load p = getTable >>= readEnv p 
         failEval = exitFailing
         apply (Function f) exprs = mapM eval exprs >>= f
         
@@ -152,10 +149,7 @@ where
     storeValue path value = do        
         table <- getTable
         if exists path table 
-            then do
-                case writeEnv path (~~) value table of
-                    Nothing   -> exitFailing $ "Cannot store " ++ show value ++ " at " ++ intercalate "." path ++ ". Type is incompatible with stored value's type."
-                    Just env' -> putTable env'
+            then writeEnv path (~~) value table >>= putTable
             else exitFailing $ intercalate "." path ++ " has not been declared."
 
      -- |Terminates the execution with an error message.

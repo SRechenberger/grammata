@@ -36,9 +36,9 @@ import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
 import qualified Grammata.Parser.AST as AST (Program (Program), 
     Declaration (Var, Num, Func), 
     Statement ((:=), For, While, DoWhile, If, Return), 
-    Expression (Variable, Constant, Binary, Unary, Application))
+    Arithmetical (Id, Con, Bin, Un, App))
 
-import General (Identifier)
+import General (Identifier, Number)
 import General.Expression (Expression (..))
 
 }
@@ -99,10 +99,10 @@ import General.Expression (Expression (..))
 
 %%
 
-Program :: {AST.Program}
+Program :: {AST.Program Identifier (AST.Arithmetical Identifier Number String)}
 Program : program '{' Decls Stmts '}'       {AST.Program $3 $4}
 
-Decls :: {[AST.Declaration]}
+Decls :: {[AST.Declaration Identifier (AST.Arithmetical Identifier Number String)]}
 Decls : Decl ';' Decls                      {$1 : $3}
       |                                     {[]}
 
@@ -114,20 +114,20 @@ Params : Param ',' Params                   {$1 : $3}
 Param :: {Identifier}                       
 Param : var id                              {(\(Id _ id) -> id) $2}
 
-Decl :: {AST.Declaration}
-Decl : var id                               {AST.Var ((\(Id _ id) -> Left id) $2)}
-     | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> Left id) $2) $4}
+Decl :: {AST.Declaration Identifier (AST.Arithmetical Identifier Number String)}
+Decl : var id                               {AST.Var ((\(Id _ id) -> id) $2)}
+     | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> id) $2) $4}
      | var id ":=" func '(' Params ')' '{' Decls Stmts '}' 
-                                            {AST.Func ((\(Id _ id) -> Left id) $2) $6 $9 $10}
+                                            {AST.Func ((\(Id _ id) -> id) $2) $6 $9 $10}
 
-Stmts :: {[AST.Statement]}
+Stmts :: {[AST.Statement Identifier (AST.Arithmetical Identifier Number String)]}
 Stmts : Stmt ';' Stmts                      {$1 : $3}
       |                                     {[]}
 
-Stmt :: {AST.Statement}
-Stmt : id ":=" Expr                         {((\(Id _ id) -> Left id) $1) AST.:= $3}
+Stmt :: {AST.Statement Identifier (AST.Arithmetical Identifier Number String)}
+Stmt : id ":=" Expr                         {((\(Id _ id) -> id) $1) AST.:= $3}
      | for '(' id ';' Expr ';' Expr ')' '{' Stmts '}'
-                                            {AST.For ((\(Id _ id) -> Left id) $3) $5 $7 $10}
+                                            {AST.For ((\(Id _ id) -> id) $3) $5 $7 $10}
      | while '(' Expr ')' '{' Stmts '}'     {AST.While $3 $6}
      | do '{' Stmts '}' while '(' Expr ')'  {AST.DoWhile $7 $3}
      | if '(' Expr ')' then '{' Stmts '}'   {AST.If $3 $7 []}
@@ -135,37 +135,37 @@ Stmt : id ":=" Expr                         {((\(Id _ id) -> Left id) $1) AST.:=
                                             {AST.If $3 $7 $11}
      | return Expr                          {AST.Return $2}
 
-Args :: {[Expression Identifier Type]} 
+Args :: {[AST.Arithmetical Identifier Number String]} 
 Args : Expr ',' Args                        {$1 : $3}
      | Expr                                 {[$1]}
      |                                      {[]}
 
-Expr :: {Expression Identifier Type}                    
-Expr : id                                   {Variable ((\(Id _ id) -> id) $1)}
-     | const                                {Constant ((\(Num _ n) -> Number $ n) $1)}
-     | Expr "+" Expr                        {Binary (+) $1 $3}
-     | Expr "-" Expr                        {Binary (-) $1 $3}
-     | Expr "*" Expr                        {Binary (*) $1 $3}
-     | Expr "/" Expr                        {Binary (/) $1 $3}
-     | Expr "div" Expr                      {Binary (\a b -> toEnum (fromEnum a `div` fromEnum b)) $1 $3}
-     | Expr "%" Expr                        {Binary (\a b -> toEnum (fromEnum a `mod` fromEnum b)) $1 $3}
-     | Expr "<" Expr                        {Binary (\a b -> if a < b then 1 else 0) $1 $3}
-     | Expr ">" Expr                        {Binary (\a b -> if a > b then 1 else 0) $1 $3}
-     | Expr "<=" Expr                       {Binary (\a b -> if a <= b then 1 else 0) $1 $3}
-     | Expr ">=" Expr                       {Binary (\a b -> if a >= b then 1 else 0) $1 $3}
-     | Expr "==" Expr                       {Binary (\a b -> if a == b then 1 else 0) $1 $3}
-     | Expr "!=" Expr                       {Binary (\a b -> if a /= b then 1 else 0) $1 $3}
-     | Expr "&&" Expr                       {Binary (\a b -> if a > 0 && b > 0 then 1 else 0) $1 $3}
-     | Expr "||" Expr                       {Binary (\a b -> if a > 0 || b > 0 then 1 else 0) $1 $3}
-     | "-" Expr %prec neg                   {Unary (\a -> negate a) $2}
-     | not Expr %prec neg                   {Unary (\a -> if a > 0 then 0 else 1) $2}
-     | id '(' Args ')'                      {Application ((\(Id _ id) -> Left id) $1) $3}
+Expr :: {AST.Arithmetical Identifier Number String}                    
+Expr : id                                   {AST.Id ((\(Id _ id) -> id) $1)}
+     | const                                {AST.Con ((\(Num _ n) -> n) $1)}
+     | Expr "+" Expr                        {AST.Bin "+" $1 $3}
+     | Expr "-" Expr                        {AST.Bin "-" $1 $3}
+     | Expr "*" Expr                        {AST.Bin "*" $1 $3}
+     | Expr "/" Expr                        {AST.Bin "/" $1 $3}
+     | Expr "div" Expr                      {AST.Bin "div" $1 $3}
+     | Expr "%" Expr                        {AST.Bin "%" $1 $3}
+     | Expr "<" Expr                        {AST.Bin "<" $1 $3}
+     | Expr ">" Expr                        {AST.Bin ">" $1 $3}
+     | Expr "<=" Expr                       {AST.Bin "<=" $1 $3}
+     | Expr ">=" Expr                       {AST.Bin ">=" $1 $3}
+     | Expr "==" Expr                       {AST.Bin "==" $1 $3}
+     | Expr "!=" Expr                       {AST.Bin "!=" $1 $3}
+     | Expr "&&" Expr                       {AST.Bin "&&" $1 $3}
+     | Expr "||" Expr                       {AST.Bin "||" $1 $3}
+     | "-" Expr %prec neg                   {AST.Un "-" $2}
+     | not Expr %prec neg                   {AST.Un "not" $2}
+     | id '(' Args ')'                      {AST.App ((\(Id _ id) ->  id) $1) $3}
      | '(' Expr ')'                         {$2}
 
 {
 
 -- |Parses the script, returning the AST
-parse :: String -> Analysis String String (AST.Program)
+parse :: String -> Analysis String String (AST.Program Identifier (AST.Arithmetical Identifier Number String))
 parse input = tokenize input >>= parseGrammata
 
 -- |Function invoked on error.
