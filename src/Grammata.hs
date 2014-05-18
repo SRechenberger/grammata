@@ -61,15 +61,15 @@ where
                     Failure err -> return $ "RUNTIME ERROR " ++ err
                     Success res -> return . show $ res -}
 
-    getStaticStructure :: Program Identifier (Arithmetical Identifier Number String) -> [([Identifier], Type)]
-    getStaticStructure (Program decls _) = analyze [] decls
+ --   getStaticStructure :: Program Identifier (Arithmetical Identifier Number String) -> Analysis String String String [([Identifier], Maybe (Arithmetical Identifier Number String))]
+    getStaticStructure (Program decls _) = return decls >>= return . analyze []
         where
-            analyze :: [Identifier] -> [Declaration Identifier (Arithmetical Identifier Number String)] -> [([Identifier], Type)]
+            analyze :: [Identifier] -> [Declaration Identifier (Arithmetical Identifier Number String)] -> [([Identifier], Maybe (Arithmetical Identifier Number String))]
             analyze _ [] = []
             analyze hither (decl:decls) = s ++ analyze hither decls 
                 where 
                     s = case decl of
-                        Var id            -> [(hither ++ [id], Null)]
-                        Num id _          -> [(hither ++ [id], Null)]
-                        Func id _ decls _ -> (hither ++ [id], Null):analyze (hither ++ [id]) decls
-                        Proc id _ decls _ -> (hither ++ [id], Null):analyze (hither ++ [id]) decls
+                        Var id            -> [(hither ++ [id], Nothing)]
+                        Num id e          -> [(hither ++ [id], Just e)]
+                        Func id _ decls _ -> (hither ++ [id], Nothing):analyze (hither ++ [id]) decls
+                        Proc id _ decls _ -> (hither ++ [id], Nothing):analyze (hither ++ [id]) decls

@@ -26,52 +26,63 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 module Grammata.Parser.Analysis 
 (
     -- * Analysis Monad
-    Analysis (LexicalError, SyntaxError, Parsed),
+    Analysis (LexicalError, SyntaxError, SemanticalError, Parsed),
 
     -- * Throwing errors
-    syntaxError, lexicalError
+    syntaxError, lexicalError, semanticalError
 )
 where
 
     import Control.Applicative (Applicative, pure, (<*>))
 
     -- |Monad for the parsing process
-    data Analysis lex syn a = 
+    data Analysis lex syn sem a = 
         -- |Throw a lexical error
           LexicalError lex 
         -- |Throw a syntactical error
         | SyntaxError syn 
+        -- |Throw a semantical error
+        | SemanticalError sem
         -- |Successfully parsed
         | Parsed a
 
-    instance Monad (Analysis lex syn) where
+    instance Monad (Analysis lex syn sem) where
         return = Parsed
         Parsed a         >>= f = f a
         LexicalError err >>= _ = LexicalError err
         SyntaxError  err >>= _ = SyntaxError err
+        SemanticalError err >>= _ = SemanticalError err
 
-    instance Functor (Analysis lex syn) where
+    instance Functor (Analysis lex syn sem) where
         fmap f (Parsed a)         = Parsed (f a)
         fmap _ (LexicalError err) = LexicalError err
         fmap _ (SyntaxError err)  = SyntaxError err
+        fmap _ (SemanticalError err) = SemanticalError err
 
-    instance Applicative (Analysis lex syn) where
+    instance Applicative (Analysis lex syn sem) where
         pure = return
         Parsed f         <*> Parsed x         = Parsed (f x)
         LexicalError err <*> _                = LexicalError err
         SyntaxError  err <*> _                = SyntaxError err
+        SemanticalError err <*> _             = SemanticalError err
         _                <*> LexicalError err = LexicalError err
         _                <*> SyntaxError  err = SyntaxError err
+        _             <*> SemanticalError err = SemanticalError err
 
-    instance (Show lex, Show syn, Show a) => Show (Analysis lex syn a) where
+    instance (Show lex, Show syn, Show sem, Show a) => Show (Analysis lex syn sem a) where
         show (LexicalError lex) = "Lexical error at " ++ show lex
         show (SyntaxError  syn) = "Syntactical error at " ++ show syn
+        show (SemanticalError sem) = "SemanticalError " ++ show sem
         show (Parsed a)         = "Successfully parsed " ++ show a
 
     -- |Throws a lexical error
-    lexicalError :: lex -> Analysis lex syn a
+    lexicalError :: lex -> Analysis lex syn sem a
     lexicalError = LexicalError
 
     -- |Throws a syntactical error
-    syntaxError :: syn -> Analysis lex syn a
+    syntaxError :: syn -> Analysis lex syn sem a
     syntaxError = SyntaxError
+
+    -- |Throws a semantical error
+    semanticalError :: sem -> Analysis lex syn sem a
+    semanticalError = SemanticalError

@@ -39,7 +39,7 @@ import Grammata.Parser.Token
 import Control.Applicative
 
     {-
-alexScanTokens :: String -> Analysis String syn [Token]
+alexScanTokens :: String -> Analysis String syn sem [Token]
 alexScanTokens str = go (alexStartPos,'\n',[],str)
   where go inp@(pos,_,_,str) =
           case alexScan inp 0 of
@@ -235,7 +235,7 @@ alexMove (AlexPn a l c) _    = AlexPn (a+1)  l     (c+1)
 -- Adds text positions to the basic model.
 
 
-alexScanTokens :: String -> Analysis String syn [Token]
+alexScanTokens :: String -> Analysis String syn sem [Token]
 alexScanTokens str = go (alexStartPos,'\n',[],str)
   where go inp@(pos,_,_,str) =
           case alexScan inp 0 of
@@ -273,8 +273,8 @@ alex_accept = listArray (0::Int,73) [AlexAccNone,AlexAccNone,AlexAccNone,AlexAcc
 {-# LINE 76 "src/Grammata/Parser/Lexer.x" #-}
 
 -- |Scans the input string
-tokenize :: String                        -- ^ String to tokenize
-         -> Analysis String syn [Token]   -- ^ Resulting token list
+tokenize :: String                            -- ^ String to tokenize
+         -> Analysis String syn sem [Token]   -- ^ Resulting token list
 tokenize = alexScanTokens
 
 alex_action_2 = \(AlexPn _ line col) -> Key (line,col)

@@ -187,13 +187,13 @@ action_0,
  action_113,
  action_114,
  action_115,
- action_116 :: () => Int -> ({-HappyReduction (Analysis String String) = -}
+ action_116 :: () => Int -> ({-HappyReduction (Analysis String String sem) = -}
 	   Int 
 	-> (Token)
-	-> HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String) HappyAbsSyn)
-	-> [HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String) HappyAbsSyn)] 
+	-> HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String sem) HappyAbsSyn)
+	-> [HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String sem) HappyAbsSyn)] 
 	-> HappyStk HappyAbsSyn 
-	-> [(Token)] -> (Analysis String String) HappyAbsSyn)
+	-> [(Token)] -> (Analysis String String sem) HappyAbsSyn)
 
 happyReduce_1,
  happyReduce_2,
@@ -236,13 +236,13 @@ happyReduce_1,
  happyReduce_39,
  happyReduce_40,
  happyReduce_41,
- happyReduce_42 :: () => ({-HappyReduction (Analysis String String) = -}
+ happyReduce_42 :: () => ({-HappyReduction (Analysis String String sem) = -}
 	   Int 
 	-> (Token)
-	-> HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String) HappyAbsSyn)
-	-> [HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String) HappyAbsSyn)] 
+	-> HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String sem) HappyAbsSyn)
+	-> [HappyState (Token) (HappyStk HappyAbsSyn -> [(Token)] -> (Analysis String String sem) HappyAbsSyn)] 
 	-> HappyStk HappyAbsSyn 
-	-> [(Token)] -> (Analysis String String) HappyAbsSyn)
+	-> [(Token)] -> (Analysis String String sem) HappyAbsSyn)
 
 action_0 (19) = happyShift action_2
 action_0 (4) = happyGoto action_3
@@ -1415,14 +1415,14 @@ happyNewToken action sts stk (tk:tks) =
 happyError_ 48 tk tks = happyError' tks
 happyError_ _ tk tks = happyError' (tk:tks)
 
-happyThen :: () => Analysis String String a -> (a -> Analysis String String b) -> Analysis String String b
+happyThen :: () => Analysis String String sem a -> (a -> Analysis String String sem b) -> Analysis String String sem b
 happyThen = (>>=)
-happyReturn :: () => a -> Analysis String String a
+happyReturn :: () => a -> Analysis String String sem a
 happyReturn = (return)
 happyThen1 m k tks = (>>=) m (\a -> k a tks)
-happyReturn1 :: () => a -> b -> Analysis String String a
+happyReturn1 :: () => a -> b -> Analysis String String sem a
 happyReturn1 = \a tks -> (return) a
-happyError' :: () => [(Token)] -> Analysis String String a
+happyError' :: () => [(Token)] -> Analysis String String sem a
 happyError' = happyError
 
 parseGrammata tks = happySomeParser where
@@ -1432,11 +1432,11 @@ happySeq = happyDontSeq
 
 
 -- |Parses the script, returning the AST
-parse :: String -> Analysis String String (AST.Program Identifier (AST.Arithmetical Identifier Number String))
+parse :: String -> Analysis String String sem (AST.Program Identifier (AST.Arithmetical Identifier Number String))
 parse input = tokenize input >>= parseGrammata
 
 -- |Function invoked on error.
-happyError :: [Token] -> Analysis String String a
+happyError :: [Token] -> Analysis String String sem a
 happyError tokens = case tokens of
     []  -> syntaxError "Unexpected end of file."
     t:_ -> syntaxError . show $ t

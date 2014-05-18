@@ -45,7 +45,7 @@ import General.Expression (Expression (..))
 
 %name parseGrammata
 %tokentype {Token}
-%monad {Analysis String String}
+%monad {Analysis String String sem}
 
 %token
     '('     {Br p '('}
@@ -165,11 +165,11 @@ Expr : id                                   {AST.Id ((\(Id _ id) -> id) $1)}
 {
 
 -- |Parses the script, returning the AST
-parse :: String -> Analysis String String (AST.Program Identifier (AST.Arithmetical Identifier Number String))
+parse :: String -> Analysis String String sem (AST.Program Identifier (AST.Arithmetical Identifier Number String))
 parse input = tokenize input >>= parseGrammata
 
 -- |Function invoked on error.
-happyError :: [Token] -> Analysis String String a
+happyError :: [Token] -> Analysis String String sem a
 happyError tokens = case tokens of
     []  -> syntaxError "Unexpected end of file."
     t:_ -> syntaxError . show $ t

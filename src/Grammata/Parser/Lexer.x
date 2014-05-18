@@ -37,7 +37,7 @@ import Grammata.Parser.Token
 import Control.Applicative
 
     {-
-alexScanTokens :: String -> Analysis String syn [Token]
+alexScanTokens :: String -> Analysis String syn sem [Token]
 alexScanTokens str = go (alexStartPos,'\n',[],str)
   where go inp@(pos,_,_,str) =
           case alexScan inp 0 of
@@ -75,7 +75,7 @@ token :-
 
 {
 -- |Scans the input string
-tokenize :: String                        -- ^ String to tokenize
-         -> Analysis String syn [Token]   -- ^ Resulting token list
+tokenize :: String                            -- ^ String to tokenize
+         -> Analysis String syn sem [Token]   -- ^ Resulting token list
 tokenize = alexScanTokens
 }
