@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                grammata
-version:             0.1.7.9
+version:             0.1.7.10
 synopsis:            Grammata-script interpreter
 -- description:         
 homepage:            https://github.com/SRechenberger/grammata

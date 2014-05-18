@@ -31,7 +31,7 @@ module General
     -- ** Simple
     Identifier, ErrorMessage,
     -- ** Execution Types
-    Number, Function, Procedure, Type(Null, Number, Function, Procedure), (~~),
+    Number, Function, Procedure, Type(Null, Number, Function, Formal, Procedure), (~~),
     -- ** Execution Monad
     ExitState(Failure, Success), Grammata, runScript,
     -- ** Grammata functions
@@ -99,7 +99,7 @@ where
         -- |NULL value.
           Null 
         -- |Formal initial value.
-        | Init (Expression Path Type)
+        | Formal (Expression Path Type)
         -- |A floating point number.
         | Number Number
         -- |A function mapping from a list of numbers to one number.
@@ -112,6 +112,7 @@ where
         show (Number e) = show e
         show (Function _) = "function"
         show (Procedure _) = "procedure"
+        show (Formal e) = show e
 
     instance EvalApparatus Grammata Path Type where
         load p = getTable >>= readEnv p 

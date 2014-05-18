@@ -140,8 +140,8 @@ where
             init' ((p,c):initVals) env = writeEnv p uncond c env >>= init' initVals
 
     -- |Finds the paths of all occuring values identified by the second parameter on the given path in the given @Environment@.
-    findDeclarations :: (Show key, Eq key, Monad m) => Path key                -- ^ Path to be searched.
-                                                    -> key                     -- ^ The identifier to look after.
-                                                    -> Environment key content -- ^ The @Environment@ to be searched.
-                                                    -> m [[key]]               -- ^ All paths of an occuring of the identifier.
-    findDeclarations path id env = return . filter (flip exists env) . map (++ [id]) . inits $ path
+    findDeclarations :: (Show key, Eq key) => Path key                -- ^ Path to be searched.
+                                           -> key                     -- ^ The identifier to look after.
+                                           -> Environment key content -- ^ The @Environment@ to be searched.
+                                           -> [[key]]               -- ^ All paths of an occuring of the identifier.
+    findDeclarations path id env = filter (flip exists env) . map (++ [id]) . inits $ path
