@@ -4,9 +4,12 @@ program {
         o := x;        
     };
 
+    var f := func (var x) {
+        return x * x;
+    };
 
     call p (100);
-    call p (200);
+    call p (f(200)); ## ERROR could not enter scope "f"
 
     return o;
 }
