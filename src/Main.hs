@@ -29,7 +29,7 @@ module Main
 )
 where
     
-    import Grammata (runScript)
+    import Grammata (execute)
 
     import System.Environment (getArgs)
     import System.Console.GetOpt
@@ -84,7 +84,7 @@ where
                 when (help opts) (putStrLn $ usageInfo header flags)
                 when (exec opts) $ case file of
                     file:_ -> if ".gr" `elem` tails file 
-                        then readFile file >>= runScript >>= putStrLn
+                        then readFile file >>= execute >>= putStrLn
                         else putStrLn $ "ERROR " ++ file ++ "is no *.gr file."
                     _      -> putStrLn $ "ERROR no file" 
             (_,_,err)   -> putStrLn $ usageInfo header flags

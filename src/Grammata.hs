@@ -25,20 +25,32 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata 
 (
-    runScript
+    execute
 )
 where
+
+    import Debug.Trace (trace)
 
     import Grammata.Parser (parse)
     import Grammata.Parser.AST (Program (Program), 
         Declaration (Var, Num, Func, Proc), 
         Statement ((:=), For, While, DoWhile, If, Return),
         Arithmetical (Id, Con, Bin, Un, App))
-    import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, Parsed))
- --   import Grammata.Execution (declare, assign, (.=), buildFunction, for, while, doWhile, ifThenElse, exitSuccess, eval, buildProcedure)
-    import General (runScript, ExitState (Failure, Success), Grammata, Type (Null, Number, Formal, Function, Procedure), getTable, putTable, Identifier, Number)
-    import General.Environment (initializeEnv, Environment, findDeclarations, uncond, writeEnv)
-    import General.Expression (Expression (Variable, Constant, Binary, Unary, Application))
+    import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, SemanticalError, Parsed))
+    import Grammata.Execution (buildFunction, for, while, doWhile, ifThenElse, buildProcedure)
+    import General (
+        runScript, 
+        ExitState (Failure, Success), 
+        Grammata, 
+        Type (Null, Number, Formal, Function, Procedure), 
+        getTable, putTable, 
+        Identifier, 
+        Number, 
+        loadValue, storeValue,
+        deformalize, 
+        exitSuccess, exitFailing)
+    import General.Environment (initializeEnv, Environment, findDeclarations, uncond, writeEnv, emptyEnv)
+    import General.Expression (Expression (Variable, Constant, Binary, Unary, Application), EvalApparatus (..))
     import Data.Foldable (forM_)
 
     import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
@@ -47,13 +59,54 @@ where
     import Control.Monad.IO.Class (liftIO)
     import Control.Concurrent.MVar (putMVar, newEmptyMVar)
 
+    execute :: String -> IO String
+    execute script = do 
+        case parse script >>= interpret of
+            LexicalError l -> return $ "Lexical Error " ++ l
+            SyntaxError s  -> return $ "Syntax Error" ++ s 
+            SemanticalError s -> return $ "Semantical Error" ++ s
+            Parsed action -> do
+                result <- runScript action emptyEnv
+                case result of 
+                    Success n -> return $ "Result " ++ show n
+                    Failure f -> return $ f
+
+
  --   getStaticStructure :: Program Identifier (Arithmetical Identifier Number String) -> Analysis String String String [([Identifier], Maybe (Arithmetical Identifier Number String))]
-    interpret (Program decls stmts) = do 
-        let analyzed = analyzeDecls [] decls
-        environment <- initializeEnv . flip zip (repeat Null) . fst . unzip $ analyzed
-        let converted = map (convertExpressions environment) analyzed
-        static <- foldl (\envM (p,c) -> envM >>= \env -> writeEnv p uncond c env) (return environment) converted
-        return (analyzeStatements [] static stmts)
+    interpret p@(Program decls stmts) = do 
+        let analyzedDecls = analyzeDecls [] decls
+        environment <- initializeEnv . flip zip (repeat Null) . fst . unzip $ analyzedDecls
+        let convertedDecls = map (convertExpressions environment) analyzedDecls
+        static <- foldl (\envM (p,c) -> envM >>= \env -> writeEnv p uncond c env) (return environment) convertedDecls
+        let analyzedProgram = analyze p static
+        return $ compileToMonadicAction analyzedProgram static 
+
+
+    compileToMonadicAction :: Program [Identifier] Type -> Environment Identifier Type -> Grammata ()
+    compileToMonadicAction (Program decls stmts) env = putTable env >> compileDecls decls >> compileStmts stmts
+        where
+            compileDecls :: [Declaration [Identifier] Type] -> Grammata () 
+            compileDecls [] = return ()
+            compileDecls (decl:decls) = action >> compileDecls decls
+                where
+                    action = case decl of
+                        Num path _                 -> loadValue path >>= deformalize >>= storeValue path
+                        Func path args decls stmts -> storeValue path $ buildFunction path args (compileDecls decls >> compileStmts stmts)  
+                        Proc path args decls stmts -> storeValue path $ buildProcedure path args (compileDecls decls >> compileStmts stmts)
+                        _                          -> return ()
+
+            compileStmts :: [Statement [Identifier] Type] -> Grammata ()
+            compileStmts [] = return ()
+            compileStmts (stmt:stmts) = action >> compileStmts stmts
+                where
+                    action = case stmt of
+                        path := expr                              -> deformalize expr >>= storeValue path
+                        For path (Formal fin) (Formal step) stmts -> for path fin step (compileStmts stmts)
+                        While (Formal cond) stmts                 -> while cond (compileStmts stmts)
+                        DoWhile (Formal cond) stmts               -> doWhile cond (compileStmts stmts)
+                        If (Formal cond) stmts1 stmts2            -> ifThenElse cond (compileStmts stmts1) (compileStmts stmts2)
+                        Return (Formal e)                         -> exitSuccess e
+
 
     analyzeDecls :: [Identifier] 
                  -> [Declaration Identifier (Arithmetical Identifier Number String)] 
@@ -64,32 +117,51 @@ where
             s = case decl of
                 Var id            -> [(hither ++ [id], Nothing)]
                 Num id e          -> [(hither ++ [id], Just e)]
-                Func id _ decls _ -> (hither ++ [id], Nothing):analyzeDecls (hither ++ [id]) decls
-                Proc id _ decls _ -> (hither ++ [id], Nothing):analyzeDecls (hither ++ [id]) decls
+                Func id args decls _ -> (hither ++ [id], Nothing):(map (\id' -> (hither ++ [id, id'], Nothing)) args ++ analyzeDecls (hither ++ [id]) decls)
+                Proc id args decls _ -> (hither ++ [id], Nothing):(map (\id' -> (hither ++ [id, id'], Nothing)) args ++ analyzeDecls (hither ++ [id]) decls)
 
-    analyzeStatements :: [Identifier] 
-                      -> Environment Identifier Type 
-                      -> [Statement Identifier (Arithmetical Identifier Number String)] 
-                      -> [Statement [Identifier] Type]
-    analyzeStatements _ _ [] = []
-    analyzeStatements hither env (stmt:stmts) = s : analyzeStatements hither env stmts 
+    analyze :: Program Identifier (Arithmetical Identifier Number String) -> Environment Identifier Type -> Program [Identifier] Type
+    analyze (Program decls stmts) static = Program (analyzeNestedStatements [] static decls) (analyzeStatements [] static stmts)  
         where
-            s = case stmt of
-                id := expr -> (hither ++ [id]) := let (_, e) = convertExpressions env (hither ++ [id], Just expr) in e
-                For i e1 e2 stmts -> let 
-                    (_, e1') = convertExpressions env (hither ++ [i], Just e1) 
-                    (_, e2') = convertExpressions env (hither ++ [i], Just e2) 
-                    in For (hither ++ [i]) e1' e2' (analyzeStatements hither env stmts)
-                While e stmts -> let
-                    (_, e') = convertExpressions env (hither, Just e) 
-                    in While e' (analyzeStatements hither env stmts)
-                DoWhile e stmts -> let
-                    (_, e') = convertExpressions env (hither, Just e) 
-                    in DoWhile e' (analyzeStatements hither env stmts)
-                If e stmts1 stmts2 -> let
-                    (_, e') = convertExpressions env (hither, Just e) 
-                    in If e' (analyzeStatements hither env stmts1) (analyzeStatements hither env stmts2)
-                Return e -> let (_, e') = convertExpressions env (hither, Just e) in Return e'
+            analyzeStatements :: [Identifier] 
+                              -> Environment Identifier Type 
+                              -> [Statement Identifier (Arithmetical Identifier Number String)] 
+                              -> [Statement [Identifier] Type]
+            analyzeStatements _ _ [] = []
+            analyzeStatements hither env (stmt:stmts) = s : analyzeStatements hither env stmts 
+                where
+                    s = case stmt of
+                        id := expr -> (hither ++ [id]) := let (_, e) = convertExpressions env (hither ++ [id], Just expr) in e
+                        For i e1 e2 stmts -> let 
+                            (_, e1') = convertExpressions env (hither ++ [i], Just e1) 
+                            (_, e2') = convertExpressions env (hither ++ [i], Just e2) 
+                            in For (hither ++ [i]) e1' e2' (analyzeStatements hither env stmts)
+                        While e stmts -> let
+                            (_, e') = convertExpressions env (hither, Just e) 
+                            in While e' (analyzeStatements hither env stmts)
+                        DoWhile e stmts -> let
+                            (_, e') = convertExpressions env (hither, Just e) 
+                            in DoWhile e' (analyzeStatements hither env stmts)
+                        If e stmts1 stmts2 -> let
+                            (_, e') = convertExpressions env (hither, Just e) 
+                            in If e' (analyzeStatements hither env stmts1) (analyzeStatements hither env stmts2)
+                        Return e -> let (_, e') = convertExpressions env (hither, Just e) in Return e'
+
+            analyzeNestedStatements :: [Identifier] 
+                                    -> Environment Identifier Type 
+                                    -> [Declaration Identifier (Arithmetical Identifier Number String)] 
+                                    -> [Declaration [Identifier] Type]
+            analyzeNestedStatements _ _ [] = []
+            analyzeNestedStatements hither env (decl:decls) = s : analyzeNestedStatements hither env decls
+                where
+                    s = case decl of
+                        Var id -> Var (last . findDeclarations hither id $ env)  
+                        Num id e -> let (_, e') = convertExpressions env (hither ++ [id], Just e) in Num (last . findDeclarations hither id $ env) e'
+                        Func id args decls' stmts' -> let args' = map (\id' -> (last . findDeclarations (hither++[id]) id' $ env)) args 
+                            in Func (last . findDeclarations hither id $ env) args' (analyzeNestedStatements (hither ++ [id]) env decls') (analyzeStatements (hither ++ [id]) env stmts')
+                        Proc id args decls' stmts' -> let args' = map (\id' -> (last . findDeclarations (hither++[id]) id' $ env)) args 
+                            in Proc (last . findDeclarations hither id $ env) args' (analyzeNestedStatements (hither ++ [id]) env decls') (analyzeStatements (hither ++ [id]) env stmts')
+
 
 
 
@@ -115,6 +187,12 @@ where
                     "div" -> \a b -> toEnum $ fromEnum a `div` fromEnum b
                     "/" -> (/)
                     "mod" -> (\a b -> toEnum $ fromEnum a `mod` fromEnum b)
+                    ">=" -> \a b -> if a >= b then 1 else 0
+                    ">" -> \a b -> if a > b then 1 else 0
+                    "<=" -> \a b -> if a <= b then 1 else 0
+                    "<" -> \a b -> if a < b then 1 else 0
+                    "==" -> \a b -> if a == b then 1 else 0
+                    "!=" -> \a b -> if a /= b then 1 else 0 
                 in Binary (\(Number a) (Number b) -> Number $ a `f` b) (resolve e1) (resolve e2)
             resolve (Un op e) = let 
                 f = case op of

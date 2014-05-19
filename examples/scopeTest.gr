@@ -3,6 +3,7 @@ program {
     var o := 0;
     
     var f := func(var x) {
+        o := 1;
         return x + o;
     };
 

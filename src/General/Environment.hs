@@ -68,16 +68,16 @@ where
     emptyEnv = Env [] []
 
     -- |Writes a value into an @Environment@, following a path of keys to the last key, which is the key of the actual value, whereas the former keys are keys of subscopes.
-    writeEnv :: (Monad m, Eq key) => Path key                        -- ^ The path to the value to be written.
-                                  -> (content -> content -> Bool)    -- ^ A relation which hast to hold, if the value should be written.
-                                  -> content                         -- ^ The value to be written.
-                                  -> Environment key content         -- ^ The @Environment@ to be modified.
-                                  -> m (Environment key content)     -- ^ The resulting @Environment@. Yields @Nothing@ if the relation didn't hold.
+    writeEnv :: (Monad m, Eq key, Show key, Show content) => Path key                        -- ^ The path to the value to be written.
+                                                          -> (content -> content -> Bool)    -- ^ A relation which hast to hold, if the value should be written.
+                                                          -> content                         -- ^ The value to be written.
+                                                          -> Environment key content         -- ^ The @Environment@ to be modified.
+                                                          -> m (Environment key content)     -- ^ The resulting @Environment@. Yields @Nothing@ if the relation didn't hold.
     writeEnv [] _ _ _ = fail "Empty path."
     writeEnv [key] rel c env = case lookup key . local $ env of 
         Nothing -> return $ env {local = (key, [c]) : local env}
         Just _  -> do 
-            newLoc <- mapM (\(key', c':cs') -> (if key' == key then (if c' `rel` c then return (key, c:cs') else fail "Cannot write value. Condition failed.") else return (key', c':cs'))) (local env) 
+            newLoc <- mapM (\(key', c':cs') -> (if key' == key then (if c' `rel` c then return (key, c:cs') else fail $ "Cannot write " ++ show c ++ " to " ++ show key ++ ". Condition failed.") else return (key', c':cs'))) (local env) 
             return $ env {local = newLoc}
     writeEnv (key:keys) rel c env = case lookup key . hidden $ env of
         Nothing   -> writeEnv keys rel c emptyEnv >>= \env' -> return $ env {hidden = (key, env'):hidden env}
@@ -111,10 +111,10 @@ where
         Just _  -> True
 
     -- |Initializes a new incarnation of all values of the scope localized by the given path with its default value.
-    enterScope :: (Show key, Eq key, Monad m, Initializable content) => Path key                        -- ^ Path of the entered Scope.
-                                                                     -> Environment key content         -- ^ Used @Environment@.
-                                                                     -> m (Environment key content)     -- ^ Modified @Environment@. Yields nothing, if the scope does not exist.
-    enterScope [] env = mapM (\(key, cs) -> return cs >>= initialize . last >>= \c -> return (key, c:cs)) (local env) >>= \newLoc -> return $ env {local = newLoc}
+    enterScope :: (Show key, Eq key, Monad m) => Path key                        -- ^ Path of the entered Scope.
+                                              -> Environment key content         -- ^ Used @Environment@.
+                                              -> m (Environment key content)     -- ^ Modified @Environment@. Yields nothing, if the scope does not exist.
+    enterScope [] env = mapM (\(key, cs) -> return cs >>= return . last >>= \c -> return (key, c:cs)) (local env) >>= \newLoc -> return $ env {local = newLoc}
     enterScope (key:path) env = case lookup key . hidden $ env of
         Nothing   -> fail $ "Could not enter scope " ++ (intercalate "." (map show $ key:path)) ++ "."
         Just env' -> enterScope path env' >>= \env' -> return $ env {hidden = map (\(key', e) -> if key' == key then (key, env') else (key', e)) . hidden $ env}
@@ -129,13 +129,13 @@ where
         Just env' -> leaveScope path env' >>= \env' -> return $ env {hidden = map (\(key', e) -> if key' == key then (key, env') else (key, e)) . hidden $ env}
 
     -- |Creates an initialized @Environment@ according to a list of pairs of a path and a default value.
-    initializeEnv :: (Eq key, Monad m) => [(Path key, content)]           -- ^ List of pairs of a path and a default value
-                                    -> m (Environment key content) -- ^ Initialized @Environment@.
+    initializeEnv :: (Eq key, Monad m, Show key, Show content) => [(Path key, content)]           -- ^ List of pairs of a path and a default value
+                                                               -> m (Environment key content) -- ^ Initialized @Environment@.
     initializeEnv initVals = init' initVals emptyEnv
         where 
-            init' :: (Eq key, Monad m) => [(Path key, content)] 
-                                       -> Environment key content
-                                       -> m (Environment key content)
+            init' :: (Eq key, Monad m, Show key, Show content) => [(Path key, content)] 
+                                                               -> Environment key content
+                                                               -> m (Environment key content)
             init' [] env = return env
             init' ((p,c):initVals) env = writeEnv p uncond c env >>= init' initVals
 

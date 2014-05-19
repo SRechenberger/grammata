@@ -31,12 +31,17 @@ module General
     -- ** Simple
     Identifier, ErrorMessage,
     -- ** Execution Types
-    Number, Function, Procedure, Type(Null, Number, Function, Formal, Procedure), (~~),
+    Number, Function, Procedure, Type(Null, Number, Function, Formal, Procedure), (~~), deformalize,
     -- ** Execution Monad
     ExitState(Failure, Success), Grammata, runScript,
-    -- ** Grammata functions
-    
+    -- ** Grammata functions    
     getTable, putTable,
+
+    -- * State manipulation
+    storeValue, loadValue,
+
+    -- * Terminating
+    exitFailing, exitSuccess
 )
 where
     import Debug.Trace
@@ -47,8 +52,8 @@ where
         Expression (Variable, Constant, Binary, Unary, Application))
     import General.Execution (Execution, get, put, left, ExitState (Success, Failure), run)
 
-    import Control.Applicative ((<$>))
-
+    import Control.Applicative (Applicative (..))
+    import Control.Monad.IO.Class (MonadIO (..))
     import Data.List (intercalate)
     
     -- |Script interpretation monad.
@@ -58,6 +63,16 @@ where
         return = Grammata . return 
         m >>= f = Grammata $ runGrammata m >>= runGrammata . f
         fail = exitFailing
+
+    instance MonadIO Grammata where
+        liftIO = Grammata . liftIO
+
+    instance Functor Grammata where
+        fmap f g = g >>= return . f
+
+    instance Applicative Grammata where
+        pure = return 
+        gF <*> gG = gF >>= \f -> gG >>= \g -> pure $ f g
 
     -- |Gets the held @Environment@.
     getTable :: Grammata (Environment Identifier Type) -- ^ The held @Environment@.
@@ -134,8 +149,13 @@ where
     Number _    ~~ Number _    = True
     Function _  ~~ Function _  = True
     Procedure _ ~~ Procedure _ = True
+    Formal _    ~~ _           = True
     Null        ~~ _           = True
     _           ~~ _           = False
+
+    deformalize :: Type -> Grammata Type 
+    deformalize (Formal e) = eval e 
+    deformalize value = return value
 
     -- |Loads a value from the held @Environment@.
     loadValue :: Path           -- ^ Path of the value.

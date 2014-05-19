@@ -27,7 +27,6 @@ module Grammata.Execution
 (   
     -- * Functions
     -- ** Variables
-    declare, assign, (.=), eval,
     -- ** Construction of functions
     buildFunction, buildProcedure,
 
@@ -49,74 +48,42 @@ where
     import Control.Monad (forM_, when)
     import Control.Concurrent.MVar (MVar, readMVar, newEmptyMVar, takeMVar, putMVar, newMVar, isEmptyMVar)
 
-    import General (Execution, 
+    import General (
+        Grammata, 
         Identifier, 
         Number, 
         Function, 
+        Procedure, 
         (~~), 
         Type(Null, Number, Function, Procedure), 
         ErrorMessage, 
         ExitState(Failure, Success), 
-        run, get, put)
-    import General.Environment (writeEnv, uncond, readEnv)
-    import Grammata.Parser.AST (Expression(Variable, Constant, Binary, Unary, Application))
+        exitFailing, exitSuccess,
+        storeValue, loadValue,
+        runScript, getTable, putTable)
+    import General.Environment (writeEnv, uncond, readEnv, enterScope, leaveScope)
+    import General.Expression (Expression (Variable, Constant, Binary, Unary, Application), EvalApparatus (..))
 
-    -- |Evaluation of arithmetical expressions.
-    eval :: Expression        -- ^ Expression to be evaluated.
-         -> Execution Type    -- ^ Result of the evaluation.
-    eval (Variable (Right id))            = read id 
-    eval (Constant num)                   = return . Number $ num
-    eval (Binary func a b)                = func <$> evalNumber a <*> evalNumber b >>= return . Number
-    eval (Unary func a)                   = func <$> evalNumber a >>= return . Number
-    eval (Application (Right fpath) args) = read fpath >>= \f -> case f of
-        Function f -> mapM eval args >>= f  
-        _          -> exitFailing $ intercalate "." fpath ++ " is no function."
-    eval invalidExpr                      = exitFailing $ "invalidExpr " ++ show invalidExpr
-
-    -- |Tries to evaluate a given expression as a number
-    evalNumber :: Expression -> Execution Number
-    evalNumber a = eval a >>= \e -> case e of
+    evalNumber :: Type -> Grammata Number
+    evalNumber t = case t of
         Number n -> return n
-        d        -> exitFailing $ show d ++ " is no number."
-
-    -- |If a symbol identified by the given identifier already exists, a new scope will be added, otherwise the a symbol will be added; however, it will be initiated with NULL.
-    declare :: [Identifier] -- ^ The identifier to be declared.
-            -> Execution () -- ^ Resulting action.
-    declare path = do
-        env' <- writeEnv path uncond Null <$> get
-        case env' of 
-            Nothing   -> exitFailing $ "declaration of " ++ intercalate "." path ++ " failed."
-            Just env' -> put env'
-
-    -- |Assignes the value of the given Value to the top legal scope of the symbol identified by the given identifier.
-    assign, (.=) :: [Identifier]    -- ^ The identifier to which the number is to be assigned.
-                 -> Type            -- ^ The Value to be assigned to the variable.
-                 -> Execution ()    -- ^ Resulting action.
-    assign path val = do
-        env' <- writeEnv path (~~) val <$> get
-        case env' of 
-            Nothing   -> exitFailing $ "declaration of " ++ intercalate "." path ++ " failed. Incompatible type."
-            Just env' -> put env'        
-
-    infix 1 .=
-    -- |Infix version of assign
-    (.=) = assign
+        _        -> exitFailing $ show t ++ " is no number."
 
     -- |Builds the frame for a new function.
     buildFunction :: [Identifier]       -- ^ Environmental path of the function.
-                  -> [Identifier]       -- ^ List of the function parameter names. 
-                  -> Execution ()       -- ^ The body of the function.
+                  -> [[Identifier]]     -- ^ List of the function parameter names. 
+                  -> Grammata ()       -- ^ The body of the function.
                   -> Type               -- ^ The resulting function.
     buildFunction path ids body = Function $ \args -> if length args > length ids
         then exitFailing $ "function of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
         else if length args < length ids 
             then return . buildFunction path (drop (length args) ids) $ do
-                forM_ (ids `zip` args) $ \(id, arg) -> (path ++ [id]) .= arg 
+                forM_ (ids `zip` args) $ \(id, arg) -> id `storeValue` arg 
                 body
             else do
-                scope <- get
-                result <- liftIO . flip run scope $ do
-                    forM_ (ids `zip` args) $ \(id, arg) -> trace (id ++ " := " ++ show arg) (path ++ [id] .= arg) 
+                scope <- getTable >>= enterScope path
+                result <- liftIO . flip runScript scope $ do
+                    forM_ (ids `zip` args) $ \(id, arg) -> id `storeValue` arg 
                     body
                 case result of
                     Success r -> return r
@@ -124,66 +91,58 @@ where
 
 
     buildProcedure :: [Identifier]       -- ^ Environmental path of the procedure.
-                   -> [Identifier]       -- ^ List of the function parameter names. 
-                   -> Execution ()       -- ^ The body of the function.
+                   -> [[Identifier]]     -- ^ List of the function parameter names. 
+                   -> Grammata ()       -- ^ The body of the function.
                    -> Type               -- ^ The resulting function.
     buildProcedure path ids body = Procedure $ \args -> if length args /= length ids
         then exitFailing $ "procedure of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
-        else do      
+        else do  
+            getTable >>= enterScope path >>= putTable
             forM_ (ids `zip` args) $ \(id, arg) -> do
-                (path ++ [id]) .= arg 
+                id `storeValue` arg 
             body
-
-
-    -- |Reads the actually visible number identified by the given identifier.
-    read :: [Identifier]    -- ^ The path of the value to be read.
-         -> Execution Type  -- ^ Resulting action returning the number to be read.
-    read path = do
-        datum <- readEnv path <$> get
-        case datum of 
-            Nothing -> exitFailing $ intercalate "." path ++ " undeclared."
-            Just d  -> return d
+            getTable >>= leaveScope path >>= putTable
     
     -- |An if .. then .. else .. statement
-    ifThenElse :: Expression     -- ^ Condition
-               -> Execution ()   -- ^ Action to be executed if the Condition is True.
-               -> Execution ()   -- ^ Action to be executed if the Condition is False.
-               -> Execution ()   -- ^ Resulting action.
+    ifThenElse :: Expression [Identifier] Type    -- ^ Condition
+               -> Grammata ()   -- ^ Action to be executed if the Condition is True.
+               -> Grammata ()   -- ^ Action to be executed if the Condition is False.
+               -> Grammata ()   -- ^ Resulting action.
     ifThenElse cond actionA actionB = do
-        cond <- evalNumber cond
+        cond <- eval cond >>= evalNumber
         if cond > 0
             then actionA 
             else actionB
 
     -- |A while loop
-    while :: Expression           -- ^ Condition of continuation.
-          -> Execution ()         -- ^ Execution to be iterated.
-          -> Execution ()         -- ^ Resulting action.
+    while :: Expression [Identifier] Type          -- ^ Condition of continuation.
+          -> Grammata ()         -- ^ Execution to be iterated.
+          -> Grammata ()         -- ^ Resulting action.
     while cond exe = ifThenElse cond (do
             exe
             while cond exe) (return ())
 
     -- |A do.. while loop
-    doWhile :: Expression           -- ^ Condition of continuation.
-            -> Execution ()         -- ^ Execution to be iterated.
-            -> Execution ()         -- ^ Resulting action. 
+    doWhile :: Expression [Identifier] Type          -- ^ Condition of continuation.
+            -> Grammata ()         -- ^ Execution to be iterated.
+            -> Grammata ()         -- ^ Resulting action. 
     doWhile cond exe = do
         exe
         ifThenElse cond (doWhile cond exe) (return ())
 
     -- |A for loop
     for :: [Identifier]             -- ^ Counter variable path
-        -> Expression               -- ^ Stop value
-        -> Expression               -- ^ Step size
-        -> Execution ()             -- ^ Counter dependent action to be iterated
-        -> Execution ()             -- ^ Resulting action.
+        -> Expression [Identifier] Type              -- ^ Stop value
+        -> Expression [Identifier] Type              -- ^ Step size
+        -> Grammata ()             -- ^ Counter dependent action to be iterated
+        -> Grammata ()             -- ^ Resulting action.
     for var stop step exec = do
-        cond <- (-) <$> evalNumber stop <*> (evalNumber . Variable . Right $ var)
+        cond <- (-) <$> (eval stop >>= evalNumber) <*> ((eval . Variable) var >>= evalNumber)
         when (cond > 0) $ do
             exec
-            i <- evalNumber . Variable . Right $ var
-            s <- evalNumber step 
-            var .= (Number $ i + s)
+            i <- (eval . Variable) var >>= evalNumber
+            s <- eval step >>= evalNumber
+            var `storeValue` (Number $ i + s)
             for var stop step exec
 
    
