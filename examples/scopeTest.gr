@@ -9,5 +9,5 @@ program {
 
     var x := f(1);
 
-    return x + o; ## Should yield 1 and not 2
+    return x + o; ## Should yield 2
 }

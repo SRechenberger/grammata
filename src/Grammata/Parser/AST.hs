@@ -32,7 +32,7 @@ module Grammata.Parser.AST
     Declaration (Var, Num, Func, Proc),
 
     -- ** Statements
-    Statement ((:=), For, While, DoWhile, If, Return),
+    Statement ((:=), For, While, DoWhile, If, Return, Call),
 
     -- ** Arithmetical Expressions
     Arithmetical (Id, Con, Bin, Un, App)
@@ -94,6 +94,8 @@ where
         | DoWhile expr [Statement id expr]
         -- |if (<Expression>) then {...} [else {...}];
         | If expr [Statement id expr] [Statement id expr]
+        -- |call <Identifier> (<Expression>,...);
+        | Call id [expr] 
         -- |return <Expression>;
         | Return expr
 

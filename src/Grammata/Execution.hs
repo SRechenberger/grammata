@@ -89,7 +89,7 @@ where
                     Success r -> return r
                     Failure e -> exitFailing e
 
-
+    -- |Builds the frame of a new procedure.
     buildProcedure :: [Identifier]       -- ^ Environmental path of the procedure.
                    -> [[Identifier]]     -- ^ List of the function parameter names. 
                    -> Grammata ()       -- ^ The body of the function.

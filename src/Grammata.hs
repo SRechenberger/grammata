@@ -34,7 +34,7 @@ where
     import Grammata.Parser (parse)
     import Grammata.Parser.AST (Program (Program), 
         Declaration (Var, Num, Func, Proc), 
-        Statement ((:=), For, While, DoWhile, If, Return),
+        Statement ((:=), For, While, DoWhile, If, Return, Call),
         Arithmetical (Id, Con, Bin, Un, App))
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, SemanticalError, Parsed))
     import Grammata.Execution (buildFunction, for, while, doWhile, ifThenElse, buildProcedure)
@@ -59,7 +59,9 @@ where
     import Control.Monad.IO.Class (liftIO)
     import Control.Concurrent.MVar (putMVar, newEmptyMVar)
 
-    execute :: String -> IO String
+    -- |Actually runs a script given as a string, returning a string representing the result or an error Message.
+    execute :: String       -- ^ Input Script.
+            -> IO String    -- ^ Result or error message.
     execute script = do 
         case parse script >>= interpret of
             LexicalError l -> return $ "Lexical Error " ++ l
@@ -71,8 +73,9 @@ where
                     Success n -> return $ "Result " ++ show n
                     Failure f -> return $ f
 
-
- --   getStaticStructure :: Program Identifier (Arithmetical Identifier Number String) -> Analysis String String String [([Identifier], Maybe (Arithmetical Identifier Number String))]
+    -- |Converts the abstract syntax tree to an executable Grammata action.
+    interpret :: Program Identifier (Arithmetical Identifier Number String) -- ^ the AST to compile.
+              -> Analysis String String String (Grammata ())                -- ^ the resulting action.
     interpret p@(Program decls stmts) = do 
         let analyzedDecls = analyzeDecls [] decls
         environment <- initializeEnv . flip zip (repeat Null) . fst . unzip $ analyzedDecls
@@ -81,8 +84,10 @@ where
         let analyzedProgram = analyze p static
         return $ compileToMonadicAction analyzedProgram static 
 
-
-    compileToMonadicAction :: Program [Identifier] Type -> Environment Identifier Type -> Grammata ()
+    -- |Compiles a transformed an AST and an Environment to an executable Grammata action.
+    compileToMonadicAction :: Program [Identifier] Type     -- ^ The AST to compile.
+                           -> Environment Identifier Type   -- ^ The initial environment.
+                           -> Grammata ()                   -- ^ The resulting action.
     compileToMonadicAction (Program decls stmts) env = putTable env >> compileDecls decls >> compileStmts stmts
         where
             compileDecls :: [Declaration [Identifier] Type] -> Grammata () 
@@ -105,12 +110,15 @@ where
                         While (Formal cond) stmts                 -> while cond (compileStmts stmts)
                         DoWhile (Formal cond) stmts               -> doWhile cond (compileStmts stmts)
                         If (Formal cond) stmts1 stmts2            -> ifThenElse cond (compileStmts stmts1) (compileStmts stmts2)
+                        Call path args                            -> loadValue path >>= \p -> case p of 
+                            Procedure p -> mapM deformalize args >>= p 
+                            val         -> exitFailing $ show val ++ " is no Procedure."
                         Return (Formal e)                         -> exitSuccess e
 
-
-    analyzeDecls :: [Identifier] 
-                 -> [Declaration Identifier (Arithmetical Identifier Number String)] 
-                 -> [([Identifier], Maybe (Arithmetical Identifier Number String))]
+    -- |Analyzes the static structure of a program's declarations.
+    analyzeDecls :: [Identifier]                                                      -- ^ The path to a certain point.
+                 -> [Declaration Identifier (Arithmetical Identifier Number String)]  -- ^ Declarations to analyze.
+                 -> [([Identifier], Maybe (Arithmetical Identifier Number String))]   -- ^ The static structure of the declarions.
     analyzeDecls _ [] = []
     analyzeDecls hither (decl:decls) = s ++ analyzeDecls hither decls 
         where 
@@ -120,7 +128,10 @@ where
                 Func id args decls _ -> (hither ++ [id], Nothing):(map (\id' -> (hither ++ [id, id'], Nothing)) args ++ analyzeDecls (hither ++ [id]) decls)
                 Proc id args decls _ -> (hither ++ [id], Nothing):(map (\id' -> (hither ++ [id, id'], Nothing)) args ++ analyzeDecls (hither ++ [id]) decls)
 
-    analyze :: Program Identifier (Arithmetical Identifier Number String) -> Environment Identifier Type -> Program [Identifier] Type
+    -- |Transforms a Grammata AST and an Environment to a Grammata AST with resolved identifiers.
+    analyze :: Program Identifier (Arithmetical Identifier Number String)  -- ^ AST to resolve.
+            -> Environment Identifier Type                                 -- ^ Initial environment.
+            -> Program [Identifier] Type                                   -- ^ Resolved AST.
     analyze (Program decls stmts) static = Program (analyzeNestedStatements [] static decls) (analyzeStatements [] static stmts)  
         where
             analyzeStatements :: [Identifier] 
@@ -131,7 +142,7 @@ where
             analyzeStatements hither env (stmt:stmts) = s : analyzeStatements hither env stmts 
                 where
                     s = case stmt of
-                        id := expr -> (hither ++ [id]) := let (_, e) = convertExpressions env (hither ++ [id], Just expr) in e
+                        id := expr -> (last . findDeclarations hither id $ env) := let (_, e) = convertExpressions env (hither ++ [id], Just expr) in e
                         For i e1 e2 stmts -> let 
                             (_, e1') = convertExpressions env (hither ++ [i], Just e1) 
                             (_, e2') = convertExpressions env (hither ++ [i], Just e2) 
@@ -145,6 +156,9 @@ where
                         If e stmts1 stmts2 -> let
                             (_, e') = convertExpressions env (hither, Just e) 
                             in If e' (analyzeStatements hither env stmts1) (analyzeStatements hither env stmts2)
+                        Call id exprs -> let 
+                            exprs' = snd . unzip $ map (convertExpressions env) (zip (repeat hither) (map Just exprs))
+                            in Call (last . findDeclarations hither id $ env) exprs'
                         Return e -> let (_, e') = convertExpressions env (hither, Just e) in Return e'
 
             analyzeNestedStatements :: [Identifier] 
@@ -164,10 +178,10 @@ where
 
 
 
-
-    convertExpressions :: Environment Identifier Type 
-                       -> ([Identifier], Maybe (Arithmetical Identifier Number String)) 
-                       -> ([Identifier], Type)
+    -- |Converts an Arithmetical AST into a Type using the given Environment.
+    convertExpressions :: Environment Identifier Type                                   -- ^ The Environment.
+                       -> ([Identifier], Maybe (Arithmetical Identifier Number String)) -- ^ The Expression to convert and its position withing the Environment.
+                       -> ([Identifier], Type)                                          -- ^ The resolved Expression.
     convertExpressions env (path, Nothing) = (path, Null)
     convertExpressions env (path, Just e) = (path, Formal . resolve $ e)
         where 

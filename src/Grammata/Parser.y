@@ -34,8 +34,8 @@ import Grammata.Parser.Lexer (tokenize)
 import Grammata.Parser.Analysis (Analysis, syntaxError)
 import Grammata.Parser.Token (Token (Id, Num, Br, Sep, Key, Op))
 import qualified Grammata.Parser.AST as AST (Program (Program), 
-    Declaration (Var, Num, Func), 
-    Statement ((:=), For, While, DoWhile, If, Return), 
+    Declaration (Var, Num, Func, Proc), 
+    Statement ((:=), For, While, DoWhile, If, Return, Call), 
     Arithmetical (Id, Con, Bin, Un, App))
 
 import General (Identifier, Number)
@@ -58,8 +58,8 @@ import General.Expression (Expression (..))
 
     program {Key p "program"}
     var     {Key p "var"}
-    num     {Key p "num"}
     func    {Key p "func"}
+    proc    {Key p "proc"}
     for     {Key p "for"}
     while   {Key p "while"}
     return  {Key p "return"}
@@ -67,6 +67,7 @@ import General.Expression (Expression (..))
     then    {Key p "then"}
     else    {Key p "else"}
     do      {Key p "do"}
+    call    {Key p "call"}
 
     id      {Id p id}
     const   {Num p c}
@@ -119,6 +120,8 @@ Decl : var id                               {AST.Var ((\(Id _ id) -> id) $2)}
      | var id ":=" Expr                     {AST.Num ((\(Id _ id) -> id) $2) $4}
      | var id ":=" func '(' Params ')' '{' Decls Stmts '}' 
                                             {AST.Func ((\(Id _ id) -> id) $2) $6 $9 $10}
+     | var id ":=" proc '(' Params ')' '{' Decls Stmts '}' 
+                                            {AST.Proc ((\(Id _ id) -> id) $2) $6 $9 $10}
 
 Stmts :: {[AST.Statement Identifier (AST.Arithmetical Identifier Number String)]}
 Stmts : Stmt ';' Stmts                      {$1 : $3}
@@ -134,6 +137,7 @@ Stmt : id ":=" Expr                         {((\(Id _ id) -> id) $1) AST.:= $3}
      | if '(' Expr ')' then '{' Stmts '}' else '{' Stmts '}'  
                                             {AST.If $3 $7 $11}
      | return Expr                          {AST.Return $2}
+     | call id '(' Args ')'                 {AST.Call ((\(Id _ id) -> id) $2) $4}
 
 Args :: {[AST.Arithmetical Identifier Number String]} 
 Args : Expr ',' Args                        {$1 : $3}

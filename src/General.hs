@@ -79,8 +79,8 @@ where
     getTable = Grammata get
 
     -- |Sets the state to a new or modified @Environment@.
-    putTable :: Environment Identifier Type  -- |@Environment@ to set as state.
-             -> Grammata ()                  -- |Action with modified state.
+    putTable :: Environment Identifier Type  -- ^ @Environment@ to set as state.
+             -> Grammata ()                  -- ^ Action with modified state.
     putTable = Grammata . put
 
     -- |Runs a Grammata action, with a given init state.
@@ -153,7 +153,9 @@ where
     Null        ~~ _           = True
     _           ~~ _           = False
 
-    deformalize :: Type -> Grammata Type 
+    -- |Evaluates a Formal expression if given.
+    deformalize :: Type             -- ^ The expression which may be formal.
+                -> Grammata Type    -- ^ The evaluation result.
     deformalize (Formal e) = eval e 
     deformalize value = return value
 
@@ -173,7 +175,7 @@ where
             then writeEnv path (~~) value table >>= putTable
             else exitFailing $ intercalate "." path ++ " has not been declared."
 
-     -- |Terminates the execution with an error message.
+    -- |Terminates the execution with an error message.
     exitFailing :: ErrorMessage     -- ^ The message returned on failure.
                 -> Grammata a      -- ^ The terminated action.
     exitFailing = Grammata . left . Failure
