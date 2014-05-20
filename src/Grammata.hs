@@ -39,6 +39,7 @@ where
     import Grammata.Parser.Analysis (Analysis (LexicalError, SyntaxError, SemanticalError, Parsed))
     import Grammata.Execution (buildFunction, for, while, doWhile, ifThenElse, buildProcedure)
     import General (
+        traceLog,
         runScript, 
         ExitState (Failure, Success), 
         Grammata, 
@@ -49,7 +50,7 @@ where
         loadValue, storeValue,
         deformalize, 
         exitSuccess, exitFailing)
-    import General.Environment (initializeEnv, Environment, findDeclarations, uncond, writeEnv, emptyEnv)
+    import General.Environment (initializeEnv, Environment, findDeclarations, uncond, writeEnv, emptyEnv, exists)
     import General.Expression (Expression (Variable, Constant, Binary, Unary, Application), EvalApparatus (..))
     import Data.Foldable (forM_)
 

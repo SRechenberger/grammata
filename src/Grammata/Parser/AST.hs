@@ -105,4 +105,5 @@ where
         show (While cond ss) = "while (" ++ show cond ++ ") {" ++ unwords (map show ss) ++ "};"
         show (DoWhile cond ss) = "do {" ++ unwords (map show ss) ++ "} while (" ++ show cond ++ ");"
         show (If cond th el) = "if (" ++ show cond ++ ") then {" ++ unwords (map show th) ++ "} else {" ++ unwords (map show el) ++ "};"
+        show (Call id exprs) = "call " ++ show id ++ "(" ++ intercalate "," (map show exprs) ++ ");"
         show (Return e) = "return " ++ show e ++ ";"

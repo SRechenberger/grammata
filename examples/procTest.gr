@@ -1,7 +1,7 @@
 program {
     var o := 0; 
     var p := proc (var x) {
-        o := x;        
+        o := x;       
     };
 
     var f := func (var x) {
@@ -9,7 +9,7 @@ program {
     };
 
     call p (100);
-    call p (f(200)); ## ERROR could not enter scope "f"
+    call p (f(200)); 
 
     return o;
 }

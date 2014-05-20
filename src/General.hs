@@ -41,7 +41,9 @@ module General
     storeValue, loadValue,
 
     -- * Terminating
-    exitFailing, exitSuccess
+    exitFailing, exitSuccess,
+
+    traceLog
 )
 where
     import Debug.Trace
@@ -184,3 +186,6 @@ where
     exitSuccess :: Expression Path Type -- ^ The value returned on success.
                 -> Grammata a           -- ^ The terminated action.
     exitSuccess e = Grammata . left . Success =<< eval e
+
+    traceLog :: Grammata ()
+    traceLog = getTable >>= liftIO . appendFile "logfile1.txt" . show

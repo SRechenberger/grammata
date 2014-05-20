@@ -92,7 +92,7 @@ where
     -- |Builds the frame of a new procedure.
     buildProcedure :: [Identifier]       -- ^ Environmental path of the procedure.
                    -> [[Identifier]]     -- ^ List of the function parameter names. 
-                   -> Grammata ()       -- ^ The body of the function.
+                   -> Grammata ()        -- ^ The body of the function.
                    -> Type               -- ^ The resulting function.
     buildProcedure path ids body = Procedure $ \args -> if length args /= length ids
         then exitFailing $ "procedure of arity " ++ (show $ length ids) ++ " applied to " ++ (show $ length args) ++ " arguments."
@@ -101,7 +101,7 @@ where
             forM_ (ids `zip` args) $ \(id, arg) -> do
                 id `storeValue` arg 
             body
-            getTable >>= leaveScope path >>= putTable
+            getTable >>= leaveScope path>>= putTable
     
     -- |An if .. then .. else .. statement
     ifThenElse :: Expression [Identifier] Type    -- ^ Condition

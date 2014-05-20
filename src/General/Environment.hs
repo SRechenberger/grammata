@@ -111,12 +111,12 @@ where
         Just _  -> True
 
     -- |Initializes a new incarnation of all values of the scope localized by the given path with its default value.
-    enterScope :: (Show key, Eq key, Monad m) => Path key                        -- ^ Path of the entered Scope.
+    enterScope :: (Show key, Show content, Eq key, Monad m) => Path key                        -- ^ Path of the entered Scope.
                                               -> Environment key content         -- ^ Used @Environment@.
                                               -> m (Environment key content)     -- ^ Modified @Environment@. Yields nothing, if the scope does not exist.
     enterScope [] env = mapM (\(key, cs) -> return cs >>= return . last >>= \c -> return (key, c:cs)) (local env) >>= \newLoc -> return $ env {local = newLoc}
     enterScope (key:path) env = case lookup key . hidden $ env of
-        Nothing   -> fail $ "Could not enter scope " ++ (intercalate "." (map show $ key:path)) ++ "."
+        Nothing   -> fail $ "Could not enter scope " ++ (intercalate "." (map show $ key:path)) ++ " in:\n" ++ show env
         Just env' -> enterScope path env' >>= \env' -> return $ env {hidden = map (\(key', e) -> if key' == key then (key, env') else (key', e)) . hidden $ env}
 
     -- |Wipes one incarnation of all values of the scope localized by the given path.
@@ -126,7 +126,7 @@ where
     leaveScope [] env = return $ env {local = map (\(key, _:cs) -> (key, cs)) . local $ env} 
     leaveScope (key:path) env = case lookup key . hidden $ env of
         Nothing   -> fail $ "Could not leave scope " ++ show (intercalate "." (map show $ key:path)) ++ "."
-        Just env' -> leaveScope path env' >>= \env' -> return $ env {hidden = map (\(key', e) -> if key' == key then (key, env') else (key, e)) . hidden $ env}
+        Just env' -> leaveScope path env' >>= \env'' -> return $ env {hidden = map (\(key', e) -> if key' == key then (key, env'') else (key', e)) . hidden $ env}
 
     -- |Creates an initialized @Environment@ according to a list of pairs of a path and a default value.
     initializeEnv :: (Eq key, Monad m, Show key, Show content) => [(Path key, content)]           -- ^ List of pairs of a path and a default value
