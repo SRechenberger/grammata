@@ -25,36 +25,99 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Storage.Imperative
 (
+    -- * Type
+    IStorage,
 
+    -- * Initialization
+    newIStorage
+
+    -- * Reading and writing
+    (==>), (<==), 
+
+    -- * Setting frames
+    setGlob, pushFrame, popFrame 
 )
 where
 
     import Prelude hiding (lookup)
-    import Data.Map (Map, fromList, lookup)
+    import Data.Map (Map, fromList, lookup, member, adjust, empty)
+    import Control.Applicative ((<|>))
 
+    -- | A simple stackframe, holding (key,value) pairs.
     type Frame ident vartype = Map ident vartype 
     
+    -- | A stack of stackframes.
     type Stack ident vartype = [Frame ident vartype]
     
+    -- | A storage, holding one global frame and a stack of local frames.
     data IStorage ident vartype = IStorage {
-        global :: Frame ident vartype,
-        locals :: Stack ident vartype
-        } 
+        global :: Frame ident vartype,  -- ^ The global frame.
+        locals :: Stack ident vartype   -- ^ The local frame stack.
+        } deriving (Show)
         
-    enter :: Ord ident => [(ident, vartype)] -> Stack ident vartype -> Stack ident vartype
-    enter vars stack = fromList vars : stack
-    
-    read :: (Show ident, Monad m, Ord ident) => ident -> Stack ident vartype -> m vartype
-    read ident (frame:_) = case lookup ident frame of
-        Nothing -> fail "IMPERATIVE STACK ERROR undefined identifier " ++ show ident
-        Just x  -> return x
+    -- | An empty storage.
+    newIStorage :: (Monad m) 
+        => m (IStorage ident vartype) -- ^ The empty storage.
+    newIStorage = return $ IStorage empty []
+
+    -- | Sets the global frame.
+    setGlob :: (Ord ident, Monad m) 
+        => [(ident, vartype)]           -- ^ The new globals frame as a list.
+        -> IStorage ident vartype       -- ^ The storages whichs globals are to be updated.
+        -> m (IStorage ident vartype)   -- ^ The updated storage.
+    setGlob glob store = return store {global = fromList glob} 
+
+    -- | Pushes a given frame onto the given storage's locals.
+    pushFrame :: (Ord ident, Monad m) 
+        => [(ident, vartype)]           -- ^ The new local frame.
+        -> IStorage ident vartype       -- ^ The storage whichs stack is to be extended.
+        -> m (IStorage ident vartype)   -- ^ The updated storage.
+    pushFrame vars iStorage = return iStorage {locals = fromList vars : locals iStorage}
+
+    -- | Pops the top frame from the given storage's locals.
+    popFrame :: (Ord ident, Monad m) 
+        => IStorage ident vartype       -- ^ The storage whichs local stack pops its top frame.
+        -> m (IStorage ident vartype)   -- ^ The updated storage.
+    popFrame iStorage = return iStorage {locals = tail . locals $ iStorage}
+
+    -- | Tries to write the value of a given identifier at first to the local top stack frame, then to its global frame.
+    (<==) :: (Show ident, Ord ident, Monad m) 
+        => ident                        -- ^ The identifier to write.
+        -> vartype                      -- ^ The new value of the given identifier.
+        -> IStorage ident vartype       -- ^ The storage to update.
+        -> m (IStorage ident vartype)   -- ^ The updated storage.
+    (ident <== datum) storage = case writeFrame ident datum (head . locals $ storage) of   
+            Just  x -> return storage {locals = x : (tail . locals $ storage)}     
+            Nothing -> case writeFrame ident datum (global storage) of
+                Just x -> return storage {global = x}
+                Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
+
+    -- | Tries to write the value of a given identifier at first from the local top stack frame, then from its global frame. 
+    (==>) :: (Show ident, Ord ident, Monad m) 
+        => ident                    -- ^ The identifier to read.
+        -> IStorage ident vartype   -- ^ The storage to read.
+        -> m vartype                -- ^ The value of the given identifier.
+    ident ==> storage = case local <|> readFrame ident (global storage) of
+        Nothing -> fail $ "ERROR identifier " ++ show ident ++ " unknown"
+        Just  x -> return x
+        where 
+            local = if null . locals $ storage
+                then Nothing
+                else readFrame ident (head . locals $ storage)
+
+    -- | Reads the value of a given identifier from a frame.
+    readFrame :: (Show ident, Ord ident) 
+        => ident 
+        -> Frame ident vartype 
+        -> Maybe vartype
+    readFrame ident frame = lookup ident frame 
         
-    write :: (Show ident, Monad m, Ord ident) => ident -> vartype -> Stack ident vartype -> m (Stack ident vartype)
-    write ident datum (frame:frames) = if member ident frame 
-        then return $ adjust (const datum) ident frame : frames
-       
-    leave :: Stack ident vartype -> m (Stack ident vartype)
-    leave (_:stack) = return stack
-    
-    
-    
+    -- | Updates the value of a given identifier of a frame.
+    writeFrame :: (Show ident, Ord ident) 
+        => ident 
+        -> vartype 
+        -> Frame ident vartype 
+        -> Maybe (Frame ident vartype)
+    writeFrame ident datum frame = if member ident frame 
+        then Just $ adjust (const datum) ident frame
+        else Nothing

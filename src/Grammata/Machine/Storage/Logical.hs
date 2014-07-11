@@ -28,3 +28,48 @@ module Grammata.Machine.Storage.Logical
 
 )
 where
+
+    import Prelude hiding (lookup)
+    import Data.Map (Map, empty, elems, insert, fromList, lookup)
+
+    type Pointer = Integer
+
+    type Solutions ident value = [Map ident value]
+
+    data LStorage ident value = LStorage {
+            next :: Pointer,
+            current :: Solutions ident value,
+            heap :: Map Pointer (Solutions ident value)
+        } deriving (Show)
+
+    newLStorage :: (Monad m) 
+        => m (LStorage ident value)
+    newLStorage = return $ LStorage 0 [] empty
+
+    collect :: (Monad m, Ord ident, Eq value) 
+        => [(ident, value)]
+        -> LStorage ident value
+        -> m (LStorage ident value)
+    collect subst storage = return storage {current = fromList subst : current storage}
+
+    saveCurrent :: (Monad m, Ord ident, Eq value) 
+        => LStorage ident value
+        -> m (Pointer, LStorage ident value)
+    saveCurrent storage = let 
+        h = heap storage
+        n = next storage 
+        c = current storage
+        in return (n, storage {next = n + 1, current = [], heap = insert n c h})
+
+    getVals :: (Monad m, Ord ident, Show ident, Eq value)
+        => Pointer
+        -> ident
+        -> LStorage ident value
+        -> m [value]
+    getVals ptr ident storage = let h = heap storage in case ptr `lookup` h of
+        Nothing -> fail $ "ERROR null pointer " ++ show ptr 
+        Just ss -> mapM load ss 
+        where 
+            load sol = case ident `lookup` sol of
+                Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
+                Just x  -> return x 
