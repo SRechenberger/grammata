@@ -25,7 +25,14 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Storage.Logical
 (
+    -- * Storage
+    LStorage, 
 
+    -- * Initialization
+    newLStorage,
+
+    -- * Reading and writing
+    collect, saveCurrent, getVals
 )
 where
 
@@ -34,38 +41,44 @@ where
 
     type Pointer = Integer
 
+    -- | The solutions type collects several bindings of variables.
     type Solutions ident value = [Map ident value]
 
+    -- | A heap for collecting nondeterministically gained bindings.
     data LStorage ident value = LStorage {
-            next :: Pointer,
-            current :: Solutions ident value,
-            heap :: Map Pointer (Solutions ident value)
+            next :: Pointer,                            -- ^ A pointer to the next free cell.
+            current :: Solutions ident value,           -- ^ The currently non saved solutions.
+            heap :: Map Pointer (Solutions ident value) -- ^ The heap of all found solutions.
         } deriving (Show)
 
+    -- | An empty storge.
     newLStorage :: (Monad m) 
-        => m (LStorage ident value)
+        => m (LStorage ident value)     -- ^ The new empty heap.
     newLStorage = return $ LStorage 0 [] empty
 
+    -- | Adds another binding vector to the current solutions.
     collect :: (Monad m, Ord ident, Eq value) 
-        => [(ident, value)]
-        -> LStorage ident value
-        -> m (LStorage ident value)
+        => [(ident, value)]         -- ^ The vector to collect.
+        -> LStorage ident value     -- ^ The storage to collect to.
+        -> m (LStorage ident value) -- ^ The updated storage.
     collect subst storage = return storage {current = fromList subst : current storage}
 
+    -- | Deposes the current solutions on the heap and returns the pointer.
     saveCurrent :: (Monad m, Ord ident, Eq value) 
-        => LStorage ident value
-        -> m (Pointer, LStorage ident value)
+        => LStorage ident value                 -- ^ The storage to collect to.
+        -> m (Pointer, LStorage ident value)    -- ^ The updated storage.
     saveCurrent storage = let 
         h = heap storage
         n = next storage 
         c = current storage
         in return (n, storage {next = n + 1, current = [], heap = insert n c h})
 
+    -- | Gets all bindings for a given identifier in the given heap cell.
     getVals :: (Monad m, Ord ident, Show ident, Eq value)
-        => Pointer
-        -> ident
-        -> LStorage ident value
-        -> m [value]
+        => Pointer              -- ^ Pointer to read from.
+        -> ident                -- ^ Identifier whichs values should be read.
+        -> LStorage ident value -- ^ Storage to read from.
+        -> m [value]            -- ^ Values of the given identifier.
     getVals ptr ident storage = let h = heap storage in case ptr `lookup` h of
         Nothing -> fail $ "ERROR null pointer " ++ show ptr 
         Just ss -> mapM load ss 

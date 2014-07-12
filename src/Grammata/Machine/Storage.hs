@@ -25,8 +25,29 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Storage
 (
-    module Grammata.Machine.Storage.Functional
-    module Grammata.Machine.Storage.Imperative
-    module Grammata.Machine.Storage.Logical
+    -- * Submodules
+    module Grammata.Machine.Storage.Functional,
+    module Grammata.Machine.Storage.Imperative,
+    module Grammata.Machine.Storage.Logical,
+
+    -- * Classes
+    Initializable (..)
 )
 where
+
+    import Grammata.Machine.Storage.Functional
+    import Grammata.Machine.Storage.Imperative
+    import Grammata.Machine.Storage.Logical
+
+    -- | Generalization of storage initialization.
+    class Initializable mem where
+        new :: (Monad m) => m mem
+
+    instance Initializable (IStorage ident value) where
+        new = newIStorage
+
+    instance Initializable (FStorage value) where
+        new = newFStorage
+
+    instance Initializable (LStorage ident value) where
+        new = newLStorage

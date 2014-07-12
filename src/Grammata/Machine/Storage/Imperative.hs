@@ -25,17 +25,14 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Storage.Imperative
 (
-    -- * Type
+    -- * Storage
     IStorage,
 
     -- * Initialization
-    newIStorage
+    newIStorage,
 
     -- * Reading and writing
-    (==>), (<==), 
-
-    -- * Setting frames
-    setGlob, pushFrame, popFrame 
+    (==>), (<==), setGlob, pushFrame, popFrame 
 )
 where
 

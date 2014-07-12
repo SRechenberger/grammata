@@ -25,13 +25,13 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Storage.Functional
 (
-    -- * Type
+    -- * Storage
     FStorage, 
 
     -- * Initialization
     newFStorage, 
 
-    -- * Reading and Writing
+    -- * Reading and writing
     depose, update, load
 )
 where
