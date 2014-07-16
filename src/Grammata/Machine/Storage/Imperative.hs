@@ -32,7 +32,7 @@ module Grammata.Machine.Storage.Imperative
     newIStorage,
 
     -- * Reading and writing
-    (==>), (<==), setGlob, pushFrame, popFrame 
+    (==>), (<==), setGlob, readGlob, pushFrame, popFrame 
 )
 where
 
@@ -64,6 +64,15 @@ where
         -> m (IStorage ident vartype)   -- ^ The updated storage.
     setGlob glob store = return store {global = fromList glob} 
 
+    -- | Reads a value from the global scope.
+    readGlob :: (Monad m, Ord ident, Show ident) 
+        => ident                    -- ^ Identifier to read.
+        -> IStorage ident vartype   -- ^ Storage to read.
+        -> m vartype                -- ^ Read value.
+    readGlob ident storage = case ident `readFrame` global storage of
+        Nothing -> fail $ "ERROR identifier " ++ show ident ++ " not found"
+        Just v  -> return v
+
     -- | Pushes a given frame onto the given storage's locals.
     pushFrame :: (Ord ident, Monad m) 
         => [(ident, vartype)]           -- ^ The new local frame.
@@ -89,7 +98,7 @@ where
                 Just x -> return storage {global = x}
                 Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
 
-    -- | Tries to write the value of a given identifier at first from the local top stack frame, then from its global frame. 
+    -- | Tries to read the value of a given identifier at first from the local top stack frame, then from its global frame. 
     (==>) :: (Show ident, Ord ident, Monad m) 
         => ident                    -- ^ The identifier to read.
         -> IStorage ident vartype   -- ^ The storage to read.

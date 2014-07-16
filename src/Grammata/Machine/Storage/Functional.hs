@@ -37,20 +37,34 @@ module Grammata.Machine.Storage.Functional
 where
 
     import Prelude hiding (lookup)
-    import Data.Map (Map, insert, adjust, lookup, empty)
+    import Data.Map (Map, insert, adjust, lookup, empty, member)
 
+    data Object value = 
+          Empty
+        | Closure value
+        | Basic value
+        deriving(Show)
+    
     type Pointer = Integer
 
     -- | Simple heap, which holds a stack of items and a pointer to the next free address.
     data FStorage value = FStorage {
-            next :: Pointer,            -- ^ Next free address.
-            heap :: Map Pointer value   -- ^ Heap holding depose items.
+            next :: Pointer,                    -- ^ Next free address.
+            heap :: Map Pointer (Object value)  -- ^ Heap holding deposed heap objects.
         } deriving (Show)
 
     -- | An empty storage.
     newFStorage :: (Monad m) 
         => m (FStorage value)   -- ^ New empty storage.
     newFStorage = return $ FStorage 0 empty
+
+    alloc :: (Monad m) 
+        => FStorage value
+        -> m (Pointer, FStorage value)
+    alloc storage = let 
+        h = heap storage 
+        n = next storage
+        in return (n, storage {next = n + 1, heap = insert n Empty h})
 
     -- | Deposes the given value on the given heap an returns the pointer, where the item is to be found, and the updated heap.
     depose :: (Monad m) 
@@ -60,27 +74,33 @@ where
     depose val storage = let 
         n = next storage
         h = heap storage
-        in return (n, storage {next = n + 1, heap = insert n val h})
+        in return (n, storage {next = n + 1, heap = insert n (Closure val) h})
 
-    -- | Updates an item on the heap.
+    -- | Overwrites heap cells with a given item.
     update :: (Monad m)
         => Pointer              -- ^ A pointer to the cell to be updated.
-        -> (value -> m value)   -- ^ The update function, returning the updated value in a monad.
+        -> value                -- ^ The value to update to.
         -> FStorage value       -- ^ The heap to be updated.
         -> m (FStorage value)   -- ^ The updated heap.
-    update ptr f storage = let 
+    update ptr val storage = let 
         h = heap storage 
-        v = case lookup ptr h of
-            Nothing -> fail $ "ERROR null pointer " ++ show ptr
-            Just x  -> return x
-        in v >>= f >>= \v -> return storage {heap = adjust (const v) ptr h}
+        in if ptr `member` h 
+            then return storage {heap = adjust (const . Closure $ val) ptr h}
+            else fail $ "ERROR null pointer " ++ show ptr
 
-    -- | Loads a value from the heap.
+    -- | Loads a value from the heap, and evaluates it with a given function, if it is a closure.
     load :: (Monad m)
-        => Pointer          -- ^ A pointer to the value to be load.
-        -> FStorage value   -- ^ The heap to load from.
-        -> m value          -- ^ The load value.
-    load ptr storage = let h = heap storage in case lookup ptr h of
+        => Pointer                   -- ^ A pointer to the value to be load.
+        -> (value -> m value)        -- ^ The evaluation function.
+        -> FStorage value            -- ^ The heap to load from.
+        -> m (value, FStorage value) -- ^ The load value.
+    load ptr eval storage = let h = heap storage in case lookup ptr h of
         Nothing -> fail $ "ERROR null pointer " ++ show ptr
-        Just x  -> return x
+        Just x  -> case x of
+            Empty     -> fail $ "ERROR empty cell at " ++ show ptr
+            Closure c -> do 
+                newVal <- eval c
+                return (newVal, storage {heap = adjust (const . Basic $ newVal) ptr h})
+            Basic b -> return (b, storage)
+                
 
