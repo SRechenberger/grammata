@@ -6,11 +6,19 @@ module Grammata.Machine.Core
 )
 where   
 
+    import Data.List (intercalate)
+    import Control.Monad.State
+
     {- EXPRESSION CORE -}
     data Expression ident basic = 
           Constant basic
         | Symbol ident
         | Function ([basic] -> basic) [(Expression ident basic)]  
+
+    instance (Show ident, Show basic) => Show (Expression ident basic) where
+        show (Constant b) = show b 
+        show (Symbol b) = show b
+        show (Function _ args) = "f("++ intercalate "," (map show args) ++")"
     
     class Monad m => FromBasic m basic | m -> basic where
         getBoolean :: basic -> m Bool
@@ -21,24 +29,46 @@ where
 
     {- LOGICAL CORE LANGUAGE -}
     
-    type Base ident basic = [Rule ident basic]
+    newtype Base ident basic = Base [Rule ident basic]
 
-    data Rule ident basic = 
-          Fact (Clause ident basic)
-        | Clause ident basic :- Goals ident basic
+    instance (Show ident, Show basic) => Show (Base ident basic) where
+        show (Base rules) = unwords . map ((++ "\n") . show) $ rules         
 
-    data Goals ident basic = 
-          Goal (Clause ident basic)
-        | Not (Goals ident basic)
-        | And [Goals ident basic]
-        | Or  [Goals ident basic]
 
-    data Clause ident basic = 
+    data Rule ident basic = Goal ident basic :- Clauses ident basic
+
+    instance (Show ident, Show basic) => Show (Rule ident basic) where 
+        show (c :- Empty) = show c ++ "."
+        show (c :- gs)    = show c ++ " :- " ++ show gs ++ "."
+
+    data Clauses ident basic = 
+          Empty
+        | Goal (Goal ident basic)
+        | Not (Clauses ident basic)
+        | And [Clauses ident basic]
+        | Or  [Clauses ident basic]
+
+    instance (Show ident, Show basic) => Show (Clauses ident basic) where
+        show Empty = "□"
+        show (Goal g) = show g 
+        show (Not c) = "¬"++show c
+        show (And cs) = "(" ++ intercalate "," (map show cs) ++ ")"
+        show (Or cs) = "(" ++ intercalate ";" (map show cs) ++ ")"
+
+    data Goal ident basic = 
           Is ident (Expression ident basic)
         | Predicate ident Int [Expression ident basic]
         | Ask (Query ident basic)
 
-    data Query ident basic = [Base ident basic] :? Goals ident basic
+    instance (Show ident, Show basic) => Show (Goal ident basic) where  
+        show (Is id expr) = show id ++ " = " ++ show expr 
+        show (Predicate ident n args) = show ident ++ "(" ++ intercalate "," (take n . map show $ args) ++ ")"
+        show (Ask q) = show q  
+
+    data Query ident basic = [Base ident basic] :? Clauses ident basic
+
+    instance (Show ident, Show basic) => Show (Query ident basic) where
+        show (bases :? clause) = "ask " ++ intercalate "," (map show bases) ++ " ?- " ++ show clause
 
 
 
@@ -53,6 +83,14 @@ where
         | Cond (Lambda ident basic) (Lambda ident basic) (Lambda ident basic)
         | Bound basic 
     
+    instance (Show ident, Show basic) => Show (Lambda ident basic) where
+        show (Basic e) = show e 
+        show (Abs ids e) = "(Λ" ++ unwords (map show ids) ++ "." ++ show e ++ ")"
+        show (App f args) = "(" ++ show f ++ " " ++ unwords (map show args) ++ ")"
+        show (Letrec defs e) = "(letrec " ++ unwords (map (\(i,e) -> show i ++ " = " ++ show e) defs) ++ " in " ++ show e ++ ")"
+        show (Cond i t e) = "if " ++ show i ++ " then " ++ show t ++ " else " ++ show e ++ ")"
+        show (Bound b) = show b ++ "↑"
+
     class Monad m => CoreLambdaMonad m ident basic | m -> ident basic where
         getBasicFromLambda :: Lambda ident basic -> m basic
         getLambdaFromBasic :: basic -> m (Lambda ident basic)
