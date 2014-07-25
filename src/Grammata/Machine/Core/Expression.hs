@@ -35,21 +35,23 @@ where
 
     import Data.List (intercalate)
 
+    import Control.Applicative (Applicative)
+
     data Expression ident basic = 
           Constant basic
         | Symbol ident
-        | Operator ([basic] -> basic) [(Expression ident basic)]  
+        | Operator ident ([basic] -> basic) [(Expression ident basic)]  
 
     instance (Show ident, Show basic) => Show (Expression ident basic) where
         show (Constant b) = show b 
         show (Symbol b) = show b
-        show (Operator _ args) = "f("++ intercalate "," (map show args) ++")"
+        show (Operator name _ args) = show name ++ "("++ intercalate "," (map show args) ++")"
     
-    class (Show ident, Show basic, Monad m) => CoreExpressionMonad m ident basic | m -> ident basic where
+    class (Show ident, Show basic, Monad m, Applicative m) => CoreExpressionMonad m ident basic | m -> ident basic where
         getSymbol :: ident -> m basic 
         getBoolean :: basic -> [(ident,basic)] -> m Bool
 
     evalCoreExpression :: CoreExpressionMonad m ident basic => Expression ident basic -> m basic
     evalCoreExpression (Symbol ident) = getSymbol ident
     evalCoreExpression (Constant basic) = return basic
-    evalCoreExpression (Operator f args) = mapM evalCoreExpression args >>= return . f
+    evalCoreExpression (Operator _ f args) = mapM evalCoreExpression args >>= return . f

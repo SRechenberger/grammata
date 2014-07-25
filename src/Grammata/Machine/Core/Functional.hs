@@ -97,7 +97,7 @@ where
 
             bindInExpr (ident,basic) expr = case expr of
                 Symbol s -> if s == ident then Constant basic else Symbol s
-                Operator f args -> Operator f $ map (bindInExpr (ident,basic)) args 
+                Operator n f args -> Operator n f $ map (bindInExpr (ident,basic)) args 
                 others -> others
 
     -- | Returns bound identifiers in a given function.
@@ -148,7 +148,7 @@ where
     isRedex :: () 
         => Lambda ident basic   -- ^ Expression to check.
         -> Bool                 -- ^ True, if given expression can be reduced by one step
-    isRedex (Basic (Operator _ _)) = True
+    isRedex (Basic (Operator _ _ _)) = True
     isRedex (App _ _) = True
     isRedex (Letrec _ _) = True
     isRedex (Cond _ _ _) = True

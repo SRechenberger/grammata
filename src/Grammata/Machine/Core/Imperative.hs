@@ -88,12 +88,15 @@ where
         -- | Assign a value to a given identifier.
         putValue, putGlobValue, putLocalValue :: ident -> basic -> m ()
         -- | Enters a scope of given identifiers.
-        enter :: [(ident, Expression ident basic)] -> m ()
-        -- | Evaluates not yet evalutated expressions of the local scope.
-        evalFrame :: m ()
+        enter :: [(ident, basic)] -> m ()
         -- | Leaves the current scope.
         leave :: m ()
 
+
+    evalFrame :: (CoreImperativeMonad m ident basic)
+        => [(ident, Expression ident basic)]
+        -> m [(ident, basic)]
+    evalFrame frame = undefined
 
     -- | Runs a given procedure with the given arguments.
     runProcedure :: (CoreImperativeMonad m ident basic) 
@@ -104,9 +107,8 @@ where
         then if length params > length args 
             then fail $ "ERROR parameters " ++ intercalate ", " (map show params) ++ " are not satisfied."
             else fail $ "ERROR arguments " ++ intercalate ", " (map show args) ++ " are not needed."
-        else let frame = (params `zip` args) ++ locals in do 
-            enter frame
-            evalFrame
+        else let frame = (params `zip` args) ++ locals in do             
+            evalFrame frame >>= enter 
             execProcedure stmts
             leave
 
@@ -120,8 +122,7 @@ where
             then fail $ "ERROR parameters " ++ intercalate ", " (map show params) ++ " are not satisfied."
             else fail $ "ERROR arguments " ++ intercalate ", " (map show args) ++ " are not needed."
         else let frame = (params `zip` args) ++ locals in do 
-            enter frame
-            evalFrame
+            evalFrame frame >>= enter 
             result <- execFunction stmts
             leave
             return result
