@@ -37,9 +37,13 @@ where
 
     import Control.Applicative (Applicative)
 
+    -- | Arithmetical expressions.
     data Expression ident basic = 
+        -- | A constant basic type.
           Constant basic
+        -- | A general purpose variable.
         | Symbol ident
+        -- | A n-ary operator.
         | Operator ident ([basic] -> basic) [(Expression ident basic)]  
 
     instance (Show ident, Show basic) => Show (Expression ident basic) where
@@ -47,11 +51,25 @@ where
         show (Symbol b) = show b
         show (Operator name _ args) = show name ++ "("++ intercalate "," (map show args) ++")"
     
-    class (Show ident, Show basic, Monad m, Applicative m) => CoreExpressionMonad m ident basic | m -> ident basic where
-        getSymbol :: ident -> m basic 
-        getBoolean :: basic -> [(ident,basic)] -> m Bool
+    -- | Evaluation monad for arithmetical expressions.
+    class (Eq ident, Show ident, Show basic, Monad m, Applicative m) => CoreExpressionMonad m ident basic | m -> ident basic where
+        -- | Gets the basic value, represented by a symbol.
+        getSymbol :: () 
+            => ident    -- ^ The identifier to look for.
+            -> m basic  -- ^ The value represented by the given identifier.
+        -- | Extracts a boolean from a basic value under a given additional symbol table.
+        getBoolean :: () 
+            => basic            -- ^ Basic to extract from.
+            -> [(ident,basic)]  -- ^ 'Optional' symbol table.
+            -> m Bool           -- ^ Resulting boolean.
 
-    evalCoreExpression :: CoreExpressionMonad m ident basic => Expression ident basic -> m basic
-    evalCoreExpression (Symbol ident) = getSymbol ident
-    evalCoreExpression (Constant basic) = return basic
-    evalCoreExpression (Operator _ f args) = mapM evalCoreExpression args >>= return . f
+    -- | Evaluation of arithmetical expressions.
+    evalCoreExpression :: (Eq ident, CoreExpressionMonad m ident basic) 
+        => Expression ident basic               -- ^ Expression to evaluate.
+        -> [(ident, Expression ident basic)]    -- ^ 'Optional' symbol table of expressions.
+        -> m basic                              -- ^ Resulting basic value.
+    evalCoreExpression (Symbol ident) frame = case ident `lookup` frame of
+        Nothing -> getSymbol ident
+        Just e  -> evalCoreExpression e frame
+    evalCoreExpression (Constant basic) frame = return basic
+    evalCoreExpression (Operator _ f args) frame = mapM (flip evalCoreExpression frame) args >>= return . f

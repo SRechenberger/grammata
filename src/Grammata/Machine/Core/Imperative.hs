@@ -96,7 +96,7 @@ where
     evalFrame :: (CoreImperativeMonad m ident basic)
         => [(ident, Expression ident basic)]
         -> m [(ident, basic)]
-    evalFrame frame = undefined
+    evalFrame frame = mapM (\(i,e) -> evalCoreExpression e frame >>= return . (,) i) frame
 
     -- | Runs a given procedure with the given arguments.
     runProcedure :: (CoreImperativeMonad m ident basic) 
@@ -132,14 +132,14 @@ where
         => [Statement ident basic]  -- ^ List of statements.
         -> m ()                     -- ^ Returns void.
     execProcedure (stmt:stmts) = case stmt of
-        id := expr        -> evalCoreExpression expr >>= putValue id >> execProcedure stmts 
+        id := expr        -> evalCoreExpression expr [] >>= putValue id >> execProcedure stmts 
         While cond stmts' -> do
-            c <- evalCoreExpression cond >>= flip getBoolean [] 
+            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
             execProcedure $ if c 
                 then stmts' ++ stmt:stmts 
                 else stmts
         If cond e1 e2     -> do 
-            c <- evalCoreExpression cond >>= flip getBoolean [] 
+            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
             execProcedure $ if c 
                 then e1 ++ stmts
                 else e2 ++ stmts  
@@ -154,17 +154,17 @@ where
         => [Statement ident basic]  -- ^ List of statements.
         -> m basic                  -- ^ Returns a basic value.
     execFunction (stmt:stmts) = case stmt of
-        id := expr        -> evalCoreExpression expr >>= putLocalValue id >> execFunction stmts 
+        id := expr        -> evalCoreExpression expr [] >>= putLocalValue id >> execFunction stmts 
         While cond stmts' -> do
-            c <- evalCoreExpression cond >>= flip getBoolean []
+            c <- evalCoreExpression cond [] >>= flip getBoolean []
             execFunction $ if c 
                 then stmts' ++ stmt:stmts 
                 else stmts
         If cond e1 e2     -> do 
-            c <- evalCoreExpression cond >>= flip getBoolean [] 
+            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
             execFunction $ if c 
                 then e1 ++ stmts
                 else e2 ++ stmts  
         Call ident args'  -> fail $ "ERROR can't call a procedure from a function."
-        Return expr       -> evalCoreExpression expr
+        Return expr       -> evalCoreExpression expr []
 
