@@ -25,6 +25,6 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata 
 (
-
+    
 )
 where

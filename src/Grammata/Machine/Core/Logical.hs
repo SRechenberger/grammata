@@ -191,9 +191,13 @@ where
         show (And cs) = "(" ++ intercalate "," (map show cs) ++ ")"
         show (Or cs) = "(" ++ intercalate ";" (map show cs) ++ ")"
 
+    -- | A logical goal.
     data Goal ident basic = 
+        -- | The left expression is unifiable with the right one.
           Is (Expression ident basic) (Expression ident basic)
+        -- | A predicate with a name, an arity and a list of arguments.
         | Predicate ident Int [Expression ident basic]
+        -- | A query to other programs.
         | Ask (Query ident basic)
 
     instance (Show ident, Show basic) => Show (Goal ident basic) where  
@@ -211,7 +215,8 @@ where
         s ~> Predicate name arity exprs = Predicate name arity $ map (s ~>) exprs 
         s ~> Ask (bs :? c) = Ask (map (s ~>) bs :? (s ~> c))
 
-    data Query ident basic = [Base ident basic] :? Clause ident basic
+    -- | Query to a logical program.
+    data Query ident basic = [Base ident basic] :? Clause ident basic   -- ^ A list of programs asked for a clause.
 
     instance (NextName ident, NextName basic) => NextName (Query ident basic) where
         nextName (bases :? clauses) = map nextName bases :? nextName clauses
@@ -224,7 +229,8 @@ where
     instance (Show ident, Show basic) => Show (Query ident basic) where
         show (bases :? clause) = "ask " ++ intercalate "," (map show bases) ++ " ?- " ++ show clause
 
-    newtype Substitution ident basic = Subst [(ident, Expression ident basic)]
+    -- | Logical variable substitution.
+    newtype Substitution ident basic = Subst [(ident, Expression ident basic)] -- ^ Substitution.
 
     instance (Show ident, Show basic) => Show (Substitution ident basic) where
         show (Subst substs) = let showSubst (i,v) = "[" ++ show i ++ "/" ++ show v ++ "]" in 
@@ -249,9 +255,9 @@ where
 
     -- | Composes whoo substitutions.
     composeSubst :: (Eq ident, CoreLogicalMonad m ident basic) 
-        => Substitution ident basic 
-        -> Substitution ident basic 
-        -> m (Substitution ident basic)
+        => Substitution ident basic     -- ^ Substitution A. 
+        -> Substitution ident basic     -- ^ Substitution B.
+        -> m (Substitution ident basic) -- ^ Substitution AB.
     composeSubst (Subst s1) s2@(Subst s2') = Subst <$> return (nubBy alreadySubst $ map (applyNto1 s2) s1 ++ s2') 
         where 
             applyNto1 sub (i, e) = (i, sub ~> e)
