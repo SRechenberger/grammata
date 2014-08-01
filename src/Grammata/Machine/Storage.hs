@@ -41,7 +41,7 @@ where
 
     -- | Generalization of storage initialization.
     class Initializable mem where
-        new :: (Monad m) => m mem
+        new :: mem
 
     instance Initializable (IStorage ident value) where
         new = newIStorage

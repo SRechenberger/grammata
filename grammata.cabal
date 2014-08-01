@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                grammata
-version:             0.2.0.10
+version:             0.2.0.11
 synopsis:            Grammata-script interpreter
 -- description:         
 homepage:            https://github.com/SRechenberger/grammata
@@ -18,12 +18,12 @@ cabal-version:       >=1.8
 executable grammata
   main-is:             Main.hs 
   other-modules:       Grammata.Machine, 
-                       Grammata.Machine.Types
                        Grammata.Machine.Core, 
-                       Grammata.Machine.Core.Expression, 
                        Grammata.Machine.Core.Imperative,
                        Grammata.Machine.Core.Functional,
                        Grammata.Machine.Core.Logical,
+                       Grammata.Machine.Core.Class
+                       Grammata.Machine.Core.Types
                        Grammata.Machine.Storage,
                        Grammata.Machine.Storage.Imperative,
                        Grammata.Machine.Storage.Functional,

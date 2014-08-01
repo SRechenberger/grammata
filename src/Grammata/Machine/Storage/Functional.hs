@@ -54,9 +54,9 @@ where
         } deriving (Show)
 
     -- | An empty storage.
-    newFStorage :: (Monad m) 
-        => m (FStorage value)   -- ^ New empty storage.
-    newFStorage = return $ FStorage 0 empty
+    newFStorage :: () 
+        => FStorage value   -- ^ New empty storage.
+    newFStorage = FStorage 0 empty
 
     alloc :: (Monad m) 
         => FStorage value

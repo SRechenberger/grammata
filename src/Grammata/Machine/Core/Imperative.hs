@@ -23,148 +23,180 @@ You should have received a copy of the GNU General Public License
 along with grammata. If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
+-- {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 
 module Grammata.Machine.Core.Imperative
 (
-    -- * Imperative methods.
-    Method (..),
 
-    -- * Core language evaluation monad class.
-    CoreExpressionMonad (..),
+    -- * Imperative core language evaluation monad
+    CoreImperative (..),
 
-    -- * Imperative Statements.
-    Statement (..),
-
-    -- * Running Methods
-    runProcedure, runFunction
+    -- * ASTs
+    -- ** Imperative Statements
+    CoreStatement (..),
+    -- ** Arithmetical Expressions
+    Expression (..),
+    
+    -- * Imperative Method
+    Method (..),    
+    runProcedure,
+    runFunction
 )
 where 
 
-    import Data.List (intercalate)
+    import Grammata.Machine.Core.Class (GrammataCore (..))
+    import Grammata.Machine.Core.Types (Basic (..))
 
-    import Grammata.Machine.Core.Expression 
+    import Control.Applicative ((<|>), pure, (<*>), (<$>))
+    import Control.Monad (forM)
 
-    -- | Imperative methods.
-    data Method ident basic = 
-        -- | Pure function, returning a value and causes no side effects.
-          Function [ident] [(ident, Expression ident basic)] [Statement ident basic] 
-        -- | Procedure, returning no value and causes side effects.
-        | Procedure [ident] [(ident, Expression ident basic)] [Statement ident basic]
+    -- | Strings as identifiers.
+    type Ident = String
 
-    instance (Show ident, Show basic) => Show (Method ident basic) where
-        show (Function idents locals stmts) = "function (" ++ intercalate "," (map show idents) ++ ") { " ++ intercalate "; " (map show stmts) ++ " }"   
-        show (Procedure idents locals stmts) = "procedure (" ++ intercalate "," (map show idents) ++ ") { " ++ intercalate "; " (map show stmts) ++ " }" 
+    -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
+    data Method m = Method [(Ident, Expression m)] [Ident] [CoreStatement m] 
 
 
-    -- | Imperative statements.
-    data Statement ident basic =
-        -- | <ID> := <EXPR>; : assigns a value to a given identifier. 
-          ident := (Expression ident basic)
-        -- | while (<EXPR>) { <STMT>* } : iterates the given block as long as the given expression is true.
-        | While (Expression ident basic) [Statement ident basic]
-        -- | if (<EXPR>) { <STMT>* } [else { <STMT>* }] : executes the first block if the given expression is true; otherwise the second one, or nothing.
-        | If (Expression ident basic) [Statement ident basic] [Statement ident basic]
-        -- | call <ID> (<EXPR>*); : calls a procedure identified by the given identifier with the given arguments.
-        | Call ident [(Expression ident basic)]
-        -- | return <EXPR>; : returns a given expressions value and terminates the method.
-        | Return (Expression ident basic)
+    -- | Imperative core language AST.
+    data CoreStatement m = 
+        -- | <IDENT> := <EXPR>
+          Ident := Expression m
+        -- | if <EXPR> then <STMT>* else <STMT>*
+        | IIf (Expression m) [CoreStatement m] [CoreStatement m]
+        -- | while <EXPR> do <STMT>* 
+        | IWhile (Expression m) [CoreStatement m]
+        -- | return <EXPR>
+        | IReturn (Expression m)
+        -- | call <IDENT> (<EXPR>*)
+        | ICall Ident [Expression m]
+        -- | trackback
+        | TrackBack
 
-    instance (Show ident, Show basic) => Show (Statement ident basic) where
-        show (i := e) = show i ++ " = " ++ show e ++ ";"
-        show (While cond stmts) = "while (" ++ show cond ++ ") { " ++ intercalate " " (map show stmts) ++ " }" 
-        show (If c ts es) = "if (" ++ show c ++ ") { " ++ intercalate " " (map show ts) ++ " }" ++ case es of 
-            [] -> ""
-            es -> "else { " ++ intercalate " " (map show es) ++ " }" 
-        show (Call ident args) = "call " ++ show ident ++ "(" ++ intercalate ", " (map show args) ++ ")"  
+    -- | Arithmetical Expression AST.
+    data Expression m = 
+        -- | <IDENT>
+          Var Ident
+        -- | <BASIC>
+        | Val Basic
+        -- | <OP> <BASIC>*
+        | Op ([Basic] -> m Basic) [Expression m]
+        -- | <IDENT> (<EXPR>*)
+        | Func Ident [Expression m]
 
+    -- | Imperative core language evaluation monad class.
+    class GrammataCore m => CoreImperative m where
+        -- | Entering a new scope.
+        enter                   :: [(Ident, Basic)] -> m ()
+        -- | Leaving the current scope.
+        leave                   :: m ()
+        -- | Calling and running a procedure.
+        callProcedure           :: Ident -> [Basic] -> m ()
+        -- | Calling and running a function, returning it's result.
+        callFunction            :: Ident -> [Basic] -> m [Basic]
+        -- | Reading from the stack.
+        readStack               :: Ident -> m Basic
+        -- | Writing to the stack, either locally or or generally.
+        writeStack, writeLocals :: Ident -> Basic -> m ()
+        -- | Backtracking.
+        trackBack               :: m a
+        trackBack = fail "BACKTRACK"
 
-    -- | Execution monad for the imperative core language.
-    class (CoreExpressionMonad m ident basic) => CoreImperativeMonad m ident basic | m -> ident basic where
-        -- | Get a method by its name.
-        getProcedure, getFunction :: ident -> m (Method ident basic)
-        -- | Get a value by its name.
-        getValue, getGlobValue, getLocalValue :: ident -> m basic
-        -- | Assign a value to a given identifier.
-        putValue, putGlobValue, putLocalValue :: ident -> basic -> m ()
-        -- | Enters a scope of given identifiers.
-        enter :: [(ident, basic)] -> m ()
-        -- | Leaves the current scope.
-        leave :: m ()
+    -- | Transforms a list like @[[1],[2,3],[4],[5,6,7]]@ to @[[1,2,4,5],[1,2,4,6],[1,2,4,7],[1,3,4,5],[1,3,4,6],[1,3,4,7]]@.
+    parallel :: () 
+        => [[a]] -- ^ Input list.
+        -> [[a]] -- ^ Output list.
+    parallel [] = [[]]
+    parallel (xs:xss) = [x:ys | x <- xs, ys <- parallel xss]
 
+    -- | Evaluates an arithmetical expression.
+    evalExpression :: (CoreImperative m)
+        => [(Ident, Expression m)]  -- ^ Temporary auxiliary symbol table.
+        -> Expression m             -- ^ Expression to evaluate.
+        -> m [Basic]                -- ^ List of possible results.
+    evalExpression tmp (Var id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= return . return)
+        where 
+            readTemp tmp = case id `lookup` tmp of
+                Nothing -> fail $ "Cannot find " ++ id ++ " in TMP."
+                Just e  -> return e
+    evalExpression _ (Val bsc) = return [bsc] 
+    evalExpression tmp (Op f args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (\args -> f args >>= return . (:[])) 
+    evalExpression tmp (Func name args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (callFunction name)
 
-    evalFrame :: (CoreImperativeMonad m ident basic)
-        => [(ident, Expression ident basic)]
-        -> m [(ident, basic)]
-    evalFrame frame = mapM (\(i,e) -> evalCoreExpression e frame >>= return . (,) i) frame
+    -- | Evaluates a expression and extracts a boolean.
+    evalToBoolean :: CoreImperative m 
+        => Expression m -- ^ Expression to evaluate.
+        -> m Bool       -- ^ Result.
+    evalToBoolean cond = do
+        conds <- evalExpression [] cond 
+        choice . flip map conds $ \cond -> case cond of
+            Boolean b -> return b
+            others    -> fail $ "ERROR " ++ show others ++ " is no boolean."
 
-    -- | Runs a given procedure with the given arguments.
-    runProcedure :: (CoreImperativeMonad m ident basic) 
-        => Method ident basic       -- ^ The procedure to run.
-        -> [Expression ident basic] -- ^ The list of arguments.
-        -> m ()                     -- ^ Returning void.
-    runProcedure (Procedure params locals stmts) args = if length params /= length args 
-        then if length params > length args 
-            then fail $ "ERROR parameters " ++ intercalate ", " (map show params) ++ " are not satisfied."
-            else fail $ "ERROR arguments " ++ intercalate ", " (map show args) ++ " are not needed."
-        else let frame = (params `zip` args) ++ locals in do             
-            evalFrame frame >>= enter 
-            execProcedure stmts
+    -- | Evaluates a expression and extracts an integer.
+    evalToInteger :: CoreImperative m 
+        => Expression m -- ^ Expression to evaluate.
+        -> m Integer    -- ^ Result.
+    evalToInteger cond = do
+        conds <- evalExpression [] cond 
+        choice . flip map conds $ \cond -> case cond of
+            Natural b -> return b
+            others    -> fail $ "ERROR " ++ show others ++ " is no natural."
+
+    -- | Runs a method as a function taking its arguments and returing a result.
+    runFunction :: CoreImperative m 
+        => Method m     -- ^ Method to run.
+        -> [Basic]      -- ^ Arguments.
+        -> m Basic      -- ^ Result.
+    runFunction (Method locals params code) args = let pLocals = params `zip` args in do 
+        enter pLocals
+        locals' <- mapM (\(i,e) -> evalExpression locals e >>= mapM (return . (,) i)) locals >>= return . parallel -- >>= mapM (\es -> (fst . unzip $ locals) `zip` es)
+        leave 
+        choice . flip map locals' $ \loc -> do
+            enter $ pLocals ++ loc
+            toReturn <- run code
             leave
+            return toReturn
+        where 
+            run [] = fail "ERROR no return"
+            run (stmt:stmts) = case stmt of
+                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeStack ident basic >> run stmts)
+                IIf cond b1 b2 -> do
+                    cond' <- evalToBoolean cond
+                    if cond' then run (b1 ++ stmts) else run (b2 ++ stmts)
+                IWhile cond block -> do 
+                    cond' <- evalToBoolean cond 
+                    if cond' then run $ block ++ stmt:stmts else run stmts
+                IReturn expr -> evalExpression [] expr >>= choice . map return
+                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
+                TrackBack -> trackBack 
 
-    -- | Runs a given function with the given arguments; returning a basic value.
-    runFunction :: (CoreImperativeMonad m ident basic) 
-        => Method ident basic       -- ^ The function to run.
-        -> [Expression ident basic] -- ^ The list of arguments.
-        -> m basic                  -- ^ The result of the function.
-    runFunction (Function params locals stmts) args = if length params /= length args 
-        then if length params > length args 
-            then fail $ "ERROR parameters " ++ intercalate ", " (map show params) ++ " are not satisfied."
-            else fail $ "ERROR arguments " ++ intercalate ", " (map show args) ++ " are not needed."
-        else let frame = (params `zip` args) ++ locals in do 
-            evalFrame frame >>= enter 
-            result <- execFunction stmts
-            leave
-            return result
-       
-    -- | Generates a monadic action from a list of statements, returning void. 
-    execProcedure :: (CoreImperativeMonad m ident basic)
-        => [Statement ident basic]  -- ^ List of statements.
-        -> m ()                     -- ^ Returns void.
-    execProcedure (stmt:stmts) = case stmt of
-        id := expr        -> evalCoreExpression expr [] >>= putValue id >> execProcedure stmts 
-        While cond stmts' -> do
-            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
-            execProcedure $ if c 
-                then stmts' ++ stmt:stmts 
-                else stmts
-        If cond e1 e2     -> do 
-            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
-            execProcedure $ if c 
-                then e1 ++ stmts
-                else e2 ++ stmts  
-        Call ident args'  -> do
-            proc <- getProcedure ident 
-            runProcedure proc args'
-            execProcedure stmts 
-        Return _          -> return ()
-
-    -- | Generates a monadic action from a list of statements, returning a basic value.
-    execFunction :: (CoreImperativeMonad m ident basic)
-        => [Statement ident basic]  -- ^ List of statements.
-        -> m basic                  -- ^ Returns a basic value.
-    execFunction (stmt:stmts) = case stmt of
-        id := expr        -> evalCoreExpression expr [] >>= putLocalValue id >> execFunction stmts 
-        While cond stmts' -> do
-            c <- evalCoreExpression cond [] >>= flip getBoolean []
-            execFunction $ if c 
-                then stmts' ++ stmt:stmts 
-                else stmts
-        If cond e1 e2     -> do 
-            c <- evalCoreExpression cond [] >>= flip getBoolean [] 
-            execFunction $ if c 
-                then e1 ++ stmts
-                else e2 ++ stmts  
-        Call ident args'  -> fail $ "ERROR can't call a procedure from a function."
-        Return expr       -> evalCoreExpression expr []
-
+    -- | Runs a method as a procedure taking its arguments.
+    runProcedure :: CoreImperative m 
+        => Method m     -- ^ Method to run.
+        -> [Basic]      -- ^ Arguments.
+        -> m ()         -- ^ Void.
+    runProcedure (Method locals params code) args = let pLocals = params `zip` args in do 
+        enter pLocals 
+        locals' <- mapM (\(i,e) -> evalExpression locals e >>= mapM (return . (,) i)) locals >>= return . parallel
+        leave
+        choice . flip map locals' $ \loc -> do 
+            enter $ pLocals ++ loc 
+            run code 
+            leave 
+        where
+            run [] = return ()
+            run (stmt:stmts) = case stmt of
+                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeLocals ident basic >> run stmts)
+                IIf cond b1 b2 -> do
+                    cond' <- evalToBoolean cond
+                    if cond' then run (b1 ++ stmts) else run (b2 ++ stmts)
+                IWhile cond block -> do 
+                    cond' <- evalToBoolean cond 
+                    if cond' then run $ block ++ stmt:stmts else run stmts
+                IReturn e -> do
+                    n <- evalToInteger e 
+                    case n of 
+                        0 -> return ()
+                        _ -> fail $ "ERROR exit code " ++ show n ++ "."
+                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
+                TrackBack -> trackBack 

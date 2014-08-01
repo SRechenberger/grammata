@@ -32,7 +32,7 @@ module Grammata.Machine.Storage.Imperative
     newIStorage,
 
     -- * Reading and writing
-    (==>), (<==), setGlob, readGlob, pushFrame, popFrame 
+    (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc
 )
 where
 
@@ -53,9 +53,9 @@ where
         } deriving (Show)
         
     -- | An empty storage.
-    newIStorage :: (Monad m) 
-        => m (IStorage ident vartype) -- ^ The empty storage.
-    newIStorage = return $ IStorage empty []
+    newIStorage :: () 
+        => IStorage ident vartype -- ^ The empty storage.
+    newIStorage = IStorage empty []
 
     -- | Sets the global frame.
     setGlob :: (Ord ident, Monad m) 
@@ -72,6 +72,16 @@ where
     readGlob ident storage = case ident `readFrame` global storage of
         Nothing -> fail $ "ERROR identifier " ++ show ident ++ " not found"
         Just v  -> return v
+
+    -- | Writes a value to the local scope.
+    writeLoc :: (Monad m, Ord ident, Show ident) 
+        => ident                        -- ^ Identifier to write.
+        -> vartype                      -- ^ Value to write.
+        -> IStorage ident vartype       -- ^ Storage to modify.
+        -> m (IStorage ident vartype)   -- ^ Modified storage.
+    writeLoc ident val storage = let t:ts = locals storage in case writeFrame ident val t of
+        Nothing -> fail $ "ERROR unknown identifier " ++ show ident ++ "."
+        Just t' -> return storage {locals = t':ts}
 
     -- | Pushes a given frame onto the given storage's locals.
     pushFrame :: (Ord ident, Monad m) 
@@ -95,7 +105,7 @@ where
     (ident <== datum) storage = case writeFrame ident datum (head . locals $ storage) of   
             Just  x -> return storage {locals = x : (tail . locals $ storage)}     
             Nothing -> case writeFrame ident datum (global storage) of
-                Just x -> return storage {global = x}
+                Just x  -> return storage {global = x}
                 Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
 
     -- | Tries to read the value of a given identifier at first from the local top stack frame, then from its global frame. 

@@ -1,6 +1,6 @@
 {-|
-Module : Grammata.Machine.Core.Logical
-Description : Grammata Logical Core Language 
+Module : Grammata.Machine.Core.Expression
+Description : Grammata Core Language Arithmetical Expressions
 Maintainer : sascha.rechenberger@uni-ulm.de
 Stability : stable
 Portability : portable
@@ -23,12 +23,19 @@ You should have received a copy of the GNU General Public License
 along with grammata. If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances #-}
+-- {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 
-module Grammata.Machine.Core.Logical
+module Grammata.Machine.Core.Class
 (
-    
+    -- * Grammata core language execution class.
+    GrammataCore (..)
 )
 where 
 
-   
+    import Control.Applicative (empty, (<|>), Alternative)
+
+    -- | Grammata core language execution class.
+    class (Monad m, Alternative m) => GrammataCore m where
+        -- | Chooses one value from a list.
+        choice :: [m a] -> m a 
+        choice = foldr (<|>) empty 
