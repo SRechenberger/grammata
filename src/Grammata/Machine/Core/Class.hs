@@ -28,14 +28,24 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 module Grammata.Machine.Core.Class
 (
     -- * Grammata core language execution class.
-    GrammataCore (..)
+    GrammataCore (..),
+
+    -- * Auxiliary types
+    Ident, Pointer
 )
 where 
 
     import Control.Applicative (empty, (<|>), Alternative)
 
+    import Grammata.Machine.Core.Types (Basic)
+
+    type Ident = String
+    type Pointer = Int
+
     -- | Grammata core language execution class.
     class (Monad m, Alternative m) => GrammataCore m where
         -- | Chooses one value from a list.
-        choice :: [m a] -> m a 
+        choice       :: [m a] -> m a 
         choice = foldr (<|>) empty 
+        -- | Calling and running a function, returning it's result.
+        callFunction :: Ident -> [Basic] -> m [Basic]

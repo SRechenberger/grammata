@@ -32,13 +32,13 @@ module Grammata.Machine.Storage.Imperative
     newIStorage,
 
     -- * Reading and writing
-    (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc
+    (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists
 )
 where
 
     import Prelude hiding (lookup)
     import Data.Map (Map, fromList, lookup, member, adjust, empty)
-    import Control.Applicative ((<|>))
+    import Control.Applicative ((<|>), Alternative)
 
     -- | A simple stackframe, holding (key,value) pairs.
     type Frame ident vartype = Map ident vartype 
@@ -120,6 +120,13 @@ where
             local = if null . locals $ storage
                 then Nothing
                 else readFrame ident (head . locals $ storage)
+
+    -- | Checks whether there is a value referenced by the given identifier on the stack.
+    identExists :: (Show ident, Ord ident, Monad m, Alternative m) 
+        => ident                    -- ^ Identifier to look for.
+        -> IStorage ident vartype   -- ^ Storage to check.
+        -> m Bool                   -- ^ Result.
+    identExists id storage = (id ==> storage >> return True) <|> return False 
 
     -- | Reads the value of a given identifier from a frame.
     readFrame :: (Show ident, Ord ident) 

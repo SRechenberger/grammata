@@ -44,14 +44,11 @@ module Grammata.Machine.Core.Imperative
 )
 where 
 
-    import Grammata.Machine.Core.Class (GrammataCore (..))
+    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
     import Grammata.Machine.Core.Types (Basic (..))
 
     import Control.Applicative ((<|>), pure, (<*>), (<$>))
     import Control.Monad (forM)
-
-    -- | Strings as identifiers.
-    type Ident = String
 
     -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
     data Method m = Method [(Ident, Expression m)] [Ident] [CoreStatement m] 
@@ -91,8 +88,6 @@ where
         leave                   :: m ()
         -- | Calling and running a procedure.
         callProcedure           :: Ident -> [Basic] -> m ()
-        -- | Calling and running a function, returning it's result.
-        callFunction            :: Ident -> [Basic] -> m [Basic]
         -- | Reading from the stack.
         readStack               :: Ident -> m Basic
         -- | Writing to the stack, either locally or or generally.

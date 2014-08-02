@@ -32,7 +32,7 @@ module Grammata.Machine.Storage.Functional
     newFStorage, 
 
     -- * Reading and writing
-    depose, update, load
+    depose, update, load, alloc
 )
 where
 
@@ -45,7 +45,7 @@ where
         | Basic value
         deriving(Show)
     
-    type Pointer = Integer
+    type Pointer = Int
 
     -- | Simple heap, which holds a stack of items and a pointer to the next free address.
     data FStorage value = FStorage {
