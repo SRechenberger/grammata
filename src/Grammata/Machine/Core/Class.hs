@@ -49,3 +49,4 @@ where
         choice = foldr (<|>) empty 
         -- | Calling and running a function, returning it's result.
         callFunction :: Ident -> [Basic] -> m [Basic]
+        getSymbol :: Ident -> m Basic

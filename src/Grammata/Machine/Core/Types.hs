@@ -42,15 +42,13 @@ where
         | Real Double
         -- | Structured data (Prolog-like).
         | Struct String Int [Basic]
-        -- | A pointer to a solution set.
-        | SolutionSet Int 
         -- | A pointer to a heap object.
         | HeapObj Int 
+        deriving (Eq)
 
     instance Show Basic where
         show (Boolean b)   = if b then "true" else "false"
-        show (Natural i)   = "nat " ++ show i
-        show (Real r)      = "real " ++ show r
-        show (Struct n a args) = "struct " ++ n ++ if a > 0 then "(" ++ intercalate "," (take a . map show $ args) ++ ")" else ""
-        show (SolutionSet ptr) = "set@" ++ show ptr 
+        show (Natural i)   = show i
+        show (Real r)      = show r
+        show (Struct n a args) = n ++ if a > 0 then "(" ++ intercalate "," (take a . map show $ args) ++ ")" else ""
         show (HeapObj ptr) = "object@" ++ show ptr

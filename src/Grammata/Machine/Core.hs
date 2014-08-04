@@ -45,7 +45,7 @@ where
     import Grammata.Machine.Grammateion (Grammateion, runGrammateion, get, put, ask)
 
     import Grammata.Machine.Storage (
-        LStorage, newLStorage, initNewSearch, collect, saveCurrent, getVals, getSolutions, 
+        LStorage, newLStorage, initSearch, fetch, collect, 
         FStorage, newFStorage, depose, update, load,
         IStorage, newIStorage, (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists) 
     import qualified Grammata.Machine.Storage as Heap (alloc)
@@ -78,6 +78,7 @@ where
             Just f  -> case f of 
                 Imperative m -> runFunction m args >>= return . return
                 Functional e -> callLambda e args >>= return . return
+        getSymbol ident = get >>= \state -> (return . stack) state >>= (ident ==>)
 
     instance CoreImperative (Grammateion Dict Storage) where
         enter frame = get >>= \state -> (return . stack) state >>= pushFrame frame >>= \s -> put state {stack = s}
@@ -97,7 +98,7 @@ where
         alloc = get >>= \state -> (return . heap) state >>= Heap.alloc >>= \(p,h) -> put state {heap = h} >> return p
         rewrite ptr expr = get >>= \state -> (return . heap) state >>= update ptr expr >>= \h -> put state {heap = h}
         fromHeap ptr = get >>= \state -> (return . heap) state >>= load ptr reduce >>= \(e,h) -> put state {heap = h} >> return e
-        loadFree ident = get >>= \state -> (return . stack) state >>= (ident ==>)
+        loadFree = getSymbol
         exists ident = get >>= \state -> (return . stack) state >>= identExists ident
 
 {- TEST STUFF -}
@@ -142,6 +143,6 @@ where
 
     runfak :: Integer -> Either String Basic
     runfak n = runGrammateion 
-        (runFunction fak [Natural n]) 
+        (callLambda fak' [Natural n, Natural 42]) 
         (Dict [("fak2", Functional fak')]) 
         (Storage newIStorage newFStorage) >>= return . fst

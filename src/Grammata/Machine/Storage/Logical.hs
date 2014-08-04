@@ -32,72 +32,43 @@ module Grammata.Machine.Storage.Logical
     newLStorage,
 
     -- * Reading and writing
-    initNewSearch, collect, saveCurrent, getVals, getSolutions
+    collect, fetch, initSearch
 )
 where
 
-    import Prelude hiding (lookup)
-    import Data.Map (Map, empty, elems, insert, fromList, toList, lookup)
-
-    type Pointer = Integer
-
-    -- | The solutions type collects several bindings of variables.
-    type Solutions ident value = [Map ident value]
-
     -- | A heap for collecting nondeterministically gained bindings.
     data LStorage ident value = LStorage {
-            next :: Pointer,                            -- ^ A pointer to the next free cell.
-            current :: [Solutions ident value],           -- ^ The currently non saved solutions.
-            heap :: Map Pointer (Solutions ident value) -- ^ The heap of all found solutions.
+            success :: Bool,
+            sought :: Maybe ident,
+            current :: [value] -- ^ The currently non saved solutions.
         } deriving (Show)
 
     -- | An empty storge.
     newLStorage :: () 
-        => LStorage ident value     -- ^ The new empty heap.
-    newLStorage = LStorage 0 [] empty
+        => LStorage ident value -- ^ The new empty heap.
+    newLStorage = LStorage False Nothing []
 
-    -- | Initializes a new collection of solutions.
-    initNewSearch :: (Monad m, Ord ident, Show ident, Eq value)
-        => LStorage ident value     -- ^ Storage to prepare.
-        -> m (LStorage ident value) -- ^ Prepared storage.
-    initNewSearch storage = let cs = current storage in return storage {current = []:cs}
+    initSearch :: (Monad m) 
+        => ident
+        -> LStorage ident value 
+        -> m (LStorage ident value)
+    initSearch var storage = return storage {sought = Just var}
 
-    -- | Adds another binding vector to the current solutions.
-    collect :: (Monad m, Ord ident, Eq value) 
-        => [(ident, value)]         -- ^ The vector to collect.
-        -> LStorage ident value     -- ^ The storage to collect to.
-        -> m (LStorage ident value) -- ^ The updated storage.
-    collect subst storage = let c:cs = current storage in return storage {current = (fromList subst : c):cs}
+    -- | Collects a new value, and sets success to true.
+    collect :: (Monad m) 
+        => value                    -- ^ Value to collect.
+        -> LStorage ident value     -- ^ Storage to modify.
+        -> m (LStorage ident value) -- ^ Modified storage.
+    collect val storage = let vals = current storage in return storage {success = True, current = val:vals}
 
-    -- | Deposes the current solutions on the heap and returns the pointer.
-    saveCurrent :: (Monad m, Ord ident, Eq value) 
-        => LStorage ident value                 -- ^ The storage to collect to.
-        -> m (Pointer, LStorage ident value)    -- ^ The updated storage.
-    saveCurrent storage = let 
-        h = heap storage
-        n = next storage 
-        c:cs = current storage
-        in return (n, storage {next = n + 1, current = cs, heap = insert n c h})
+    -- | Fetches the results of a search.
+    fetch :: (Monad m)
+        => LStorage ident value             -- ^ Storage to fetch from.
+        -> m (Either Bool (ident, [value])) -- ^ Result.
+    fetch s = return $ if success s 
+        then case sought s of
+            Nothing -> Left True 
+            Just v  -> Right (v, current s)
+        else Left False
 
-    -- | Gets all bindings for a given identifier in the given heap cell.
-    getVals :: (Monad m, Ord ident, Show ident, Eq value)
-        => Pointer              -- ^ Pointer to read from.
-        -> ident                -- ^ Identifier whichs values should be read.
-        -> LStorage ident value -- ^ Storage to read from.
-        -> m [value]            -- ^ Values of the given identifier.
-    getVals ptr ident storage = let h = heap storage in case ptr `lookup` h of
-        Nothing -> fail $ "ERROR null pointer " ++ show ptr 
-        Just ss -> mapM load ss 
-        where 
-            load sol = case ident `lookup` sol of
-                Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
-                Just x  -> return x 
 
-    -- | Gets all solutions stored in a given heap cell.
-    getSolutions :: (Monad m, Ord ident, Show ident, Eq value)
-        => Pointer              -- ^ Pointer on the heap cell.
-        -> LStorage ident value -- ^ Storage to read from.
-        -> m [[(ident,value)]]  -- ^ Solutions stored.
-    getSolutions ptr storage = let h = heap storage in case ptr `lookup` h of
-        Nothing -> fail $ "ERROR null pointer " ++ show ptr 
-        Just x  -> return . map toList $ x
