@@ -28,18 +28,17 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 module Grammata.Machine.Core
 (
     -- * Auxiliary types
-    Dict, Storage,
+    
 
     -- * Submodules.
-    module Grammata.Machine.Core.Class,
-    module Grammata.Machine.Core.Types,
-    module Grammata.Machine.Core.Imperative
 )
 where   
 
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
     import Grammata.Machine.Core.Imperative (CoreStatement (..), Expression (..), runFunction, runProcedure, CoreImperative (..), Method (..))
     import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), reduce, callLambda)
+    import Grammata.Machine.Core.Logical (CoreLogical (..), askQuery, Query (..), LRule (..), LClause (..), LGoal (..), newVar)
+    import qualified Grammata.Machine.Core.Logical as L (LTerm (..))
     import Grammata.Machine.Core.Types (Basic (..))
 
     import Grammata.Machine.Grammateion (Grammateion, runGrammateion, get, put, ask)
@@ -50,7 +49,6 @@ where
         IStorage, newIStorage, (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists) 
     import qualified Grammata.Machine.Storage as Heap (alloc)
 
-    import Debug.Trace
 
     -- | Union type for subprograms.
     data Subprogram m = 
@@ -59,9 +57,9 @@ where
         -- | Functional subprogram; i.e. a lambda expression.
         | Functional (CoreLambda m) 
         -- | Logical subprogram; i.e. a query
-        --  Logical [TODO]
+        | Logical Query
         -- | Knowledge bases
-        --  Base [TODO]
+        | Base [LRule]
 
     -- | A dictionary, identifying methods with identifiers.
     data Dict = Dict [(Ident, Subprogram Machine)]
@@ -78,11 +76,13 @@ where
             Just f  -> case f of 
                 Imperative m -> runFunction m args >>= return . return
                 Functional e -> callLambda e args >>= return . return
+                Logical q    -> askQuery q args 
+                _            -> fail $ "ERROR cannot run " ++ name ++ " as function."
         getSymbol ident = get >>= \state -> (return . stack) state >>= (ident ==>)
-
-    instance CoreImperative (Grammateion Dict Storage) where
         enter frame = get >>= \state -> (return . stack) state >>= pushFrame frame >>= \s -> put state {stack = s}
         leave = get >>= \state -> (return . stack) state >>= popFrame >>= \s -> put state {stack = s}
+
+    instance CoreImperative (Grammateion Dict Storage) where
         callProcedure name args = ask >>= \(Dict dict) -> case name `lookup` dict of
             Nothing -> fail $ "ERROR there is no procedure " ++ name ++ "."
             Just p  -> case p of 
@@ -91,7 +91,6 @@ where
         readStack ident = get >>= \state -> (return . stack) state >>= (ident ==>) 
         writeStack ident val = get >>= \state -> (return . stack) state >>= ident <== val >>= \s -> put state {stack = s}
         writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
-
     
     instance CoreFunctional (Grammateion Dict Storage) where
         new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> return p
@@ -100,6 +99,34 @@ where
         fromHeap ptr = get >>= \state -> (return . heap) state >>= load ptr reduce >>= \(e,h) -> put state {heap = h} >> return e
         loadFree = getSymbol
         exists ident = get >>= \state -> (return . stack) state >>= identExists ident
+
+    instance CoreLogical (Grammateion Dict Storage) where
+        getBase name = ask >>= \(Dict dict) -> case name `lookup` dict of
+            Nothing -> fail $ "ERROR there is no function " ++ name ++ "."
+            Just f  -> case f of 
+                Base b -> return b
+                _      -> fail $ "ERROR " ++ name ++ " is no knowledge base."
+
+    -- | Running a program given as a list of identifier method pairs, where one must be declared as @main@, and a set of global variables.
+    runProgram :: (Monad m) 
+        => [(Ident, Subprogram Machine)] -- ^ List of subprograms.
+        -> [(Ident, Basic)]              -- ^ List of globals variables.
+        -> m String                      -- ^ Output string.
+    runProgram d g = case "main" `lookup` d of
+        Nothing -> fail "ERROR could not find entry point." 
+        Just f  -> let 
+            e = Storage newIStorage newFStorage             
+            a = pushGlob g >> callFunction "main" []
+            in case runGrammateion a (Dict d) e of 
+                Left msg        -> return msg
+                Right (basic,_) -> return . show $ basic
+        where
+            pushGlob :: ()
+                => [(Ident,Basic)]
+                -> Machine ()
+            pushGlob globals = get >>= \state -> setGlob globals (stack state) >>= \stack' -> put state {stack = stack'} 
+
+
 
 {- TEST STUFF -}
 
@@ -145,4 +172,41 @@ where
     runfak n = runGrammateion 
         (callLambda fak' [Natural n, Natural 42]) 
         (Dict [("fak2", Functional fak')]) 
+        (Storage newIStorage newFStorage) >>= return . fst
+
+    testBase :: [LRule]
+    testBase = [
+        LPred "p" 1 [L.LFun "null" 0 []] :- [],
+        LPred "p" 1 [L.LFun "succ" 1 [newVar "X"]] :- [LGoal $ LPred "p" 1 [newVar "X"]]
+        ] 
+
+    testBase2 :: [LRule]
+    testBase2 = [
+        LPred "p" 1 [newVar "A"] :- [LNot . return . LGoal $ (newVar "A") :=: (L.LFun "x" 0 [])]
+        ]
+
+    testBase3 :: [LRule]
+    testBase3 = [
+        LPred "p" 1 [newVar "Y"] :- [LOr [[LGoal $ (newVar "Y") :=: (L.LFun "x" 0 [])], [(LGoal (newVar "Y" :=: L.LFun "y" 0 []))]]]
+        ]
+
+    testBase4 :: [LRule]
+    testBase4 = [
+        LPred "p" 1 [L.LFun "x" 0 []] :- [],
+        LPred "p" 1 [L.LFun "y" 0 []] :- []
+        ]
+
+    testQuery :: Query
+    testQuery = Query [] (Just "X") ["b1"] [LGoal $ LPred "p" 1 [L.LFun "succ" 1 [L.LFun "succ" 1 [L.LFun "succ" 1 [newVar "X"]]]]]
+
+    testQuery2 :: Query
+    testQuery2 = Query [] Nothing ["b2"] [LOr [[LGoal $ LPred "p" 1 [L.LFun "x" 0 []]], [LGoal $ LPred "p" 1 [L.LFun "y" 0 []]]]]
+
+    testQuery3 :: Query
+    testQuery3 = Query [] (Just "X") ["b3"] [LGoal . LPred "p" 1 . return . newVar $ "X"]
+
+--    runtestQ1 :: Either String Basic
+    runtestQ1 = runGrammateion 
+        (askQuery testQuery3 [])
+        (Dict [("b3", Base testBase3)])
         (Storage newIStorage newFStorage) >>= return . fst

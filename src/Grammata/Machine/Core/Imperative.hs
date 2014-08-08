@@ -44,7 +44,7 @@ module Grammata.Machine.Core.Imperative
 )
 where 
 
-    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
+    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer, parallel)
     import Grammata.Machine.Core.Types (Basic (..))
 
     import Control.Applicative ((<|>), pure, (<*>), (<$>))
@@ -82,10 +82,6 @@ where
 
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
-        -- | Entering a new scope.
-        enter                   :: [(Ident, Basic)] -> m ()
-        -- | Leaving the current scope.
-        leave                   :: m ()
         -- | Calling and running a procedure.
         callProcedure           :: Ident -> [Basic] -> m ()
         -- | Reading from the stack.
@@ -96,12 +92,7 @@ where
         trackBack               :: m a
         trackBack = fail "BACKTRACK"
 
-    -- | Transforms a list like @[[1],[2,3],[4],[5,6,7]]@ to @[[1,2,4,5],[1,2,4,6],[1,2,4,7],[1,3,4,5],[1,3,4,6],[1,3,4,7]]@.
-    parallel :: () 
-        => [[a]] -- ^ Input list.
-        -> [[a]] -- ^ Output list.
-    parallel [] = [[]]
-    parallel (xs:xss) = [x:ys | x <- xs, ys <- parallel xss]
+    
 
     -- | Evaluates an arithmetical expression.
     evalExpression :: (CoreImperative m)

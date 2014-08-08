@@ -27,42 +27,64 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine.Core.Logical
 (
-    
+    -- * Logical core language evalutation monad.
+    CoreLogical (..),
+
+    -- * Logical core language
+    -- ** AST
+    LTerm (..),
+    LGoal (..), 
+    LClause (..),
+    LRule (..),
+    Query (..),
+
+    -- ** Auxiliary functions
+    newVar,
+
+    -- * Calling
+    askQuery
+
 )
 where 
 
-    import Data.Monoid
+    import Data.Monoid (Monoid (..), (<>))
     import Data.List (intercalate)
 
     import Control.Monad.State (State, evalState, get, put)
     import Control.Applicative ((<$>), (<*>), (<|>))
     import Control.Monad (forM)
 
-    import Grammata.Machine.Core.Class (Ident, GrammataCore (..))
+    import Grammata.Machine.Core.Class (Ident, GrammataCore (..), parallel)
     import Grammata.Machine.Core.Types (Basic (..))
 
-    import Debug.Trace
 
     class GrammataCore m => CoreLogical m where
-        begin :: Ident -> m ()
-        found :: Subst -> m ()
-        finish :: m (Bool, [Basic])
+        getBase :: Ident -> m [LRule]
 
-    data LVar = LVar {name :: Ident, rename :: Int} deriving (Eq)
+    class ApplySubst t where
+        (~~>) :: Subst -> t -> t 
+
+    class NextNames t where
+        nextNames :: t -> t
+
+
+    -- | A logical variable, which can be renamed by consecutively incrementing an index.
+    data LVar = Ident :$ Int deriving (Eq)
 
     instance Show LVar where
-        show (LVar n i) = "$" ++ n ++ show i
+        show (n :$ i) = "$" ++ n ++ show i
 
-    newLVar :: Ident -> LVar 
-    newLVar i = LVar i 0
+    instance NextNames LVar where
+        nextNames (n :$ i) = n :$ (i+1)
 
-    nextName :: LVar -> LVar
-    nextName (LVar n i) = LVar n (i+1)
-
-    data LTerm = Atom Basic | Var LVar | LFun Ident Int [LTerm]  
+    -- | Terms of predicate logic.
+    data LTerm = 
+          Atom Basic             -- ^ An 'atom'. 
+        | Var LVar               -- ^ A logical variable.
+        | LFun Ident Int [LTerm] -- ^ A function.
 
     instance NextNames LTerm where
-        nextNames (Var var) = Var $ nextName var 
+        nextNames (Var var) = Var $ nextNames var 
         nextNames (LFun i a ts) = LFun i a $ map nextNames ts
         nextNames atom = atom
 
@@ -71,72 +93,17 @@ where
         show (Atom val) = show val
         show (LFun n i args) = n ++ (if i == 0 then "" else "(" ++ (intercalate ", " . take i . map show $ args) ++ ")")
 
-    basicToTerm :: () 
-        => Basic 
-        -> LTerm 
-    basicToTerm (Struct n i as) = LFun n i (map basicToTerm as)
-    basicToTerm b = Atom b
-
-    termToBasic :: CoreLogical m 
-        => LTerm 
-        -> m [Basic] 
-    termToBasic (Atom b) = return [b]
-    termToBasic (Var v)  = fail $ "ERROR " ++ show v ++ " is unbound."
-    termToBasic (LFun n i as) = do 
-        argss <- mapM termToBasic as 
-        (if i == 0 then return <$> (getSymbol n) else choice (map (callFunction n) argss)) <|> mapM (return . Struct n i) argss
-
-    occursIn :: LVar -> LTerm -> Bool
-    occursIn var s = case s of
-        Var var' -> var' == var 
-        Atom _   -> False
-        LFun _ _ args -> or . map (occursIn var) $ args
-
+    -- | A substitution of logical variables.
     data Subst = Subst {apply :: LTerm -> LTerm}
-
-    class ApplySubst t where
-        (~~>) :: Subst -> t -> t 
-
-    class NextNames t where
-        nextNames :: t -> t
-
-    newSubst :: LVar -> LTerm -> Subst
-    newSubst var val = Subst $ \x -> apply' x
-        where 
-            apply' x = case x of
-                Var var' -> if var == var' then val else Var var' 
-                Atom b -> Atom  b
-                LFun i n args  -> LFun i n (map apply' args)
 
     instance Monoid Subst where
         mempty = Subst id
         s1 `mappend` s2 = Subst $ \x -> apply s2 . apply s1 $ x 
-            
 
-    unify :: () 
-        => LTerm 
-        -> LTerm 
-        -> Maybe Subst 
-    unify (Atom c1) (Atom c2)              = if c1 == c2 then Just mempty else Nothing
-    unify (Atom c1) (Var  v2)              = Just . newSubst v2 . Atom $ c1
-    unify (Atom c1) (LFun _ _ _)           = Nothing
-    unify (Var  v1) (Atom c2)              = Just . newSubst v1 . Atom $ c2
-    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v1 (Var v2)
-    unify (Var  v1) s                      = if v1 `occursIn` s then Nothing else Just $ newSubst v1 s
-    unify (LFun _ _ _) (Atom _)            = Nothing
-    unify s@(LFun _ _ _) (Var v2)          = if v2 `occursIn` s then Nothing else Just $ newSubst v2 s
-    unify (LFun f a args) (LFun g b args') = if f == g && a == b then unifyList args args' mempty else Nothing
-
-    unifyList :: [LTerm] -> [LTerm] -> Subst -> Maybe Subst 
-    unifyList [] [] s = Just s 
-    unifyList (a:as) (b:bs) s = case a `unify` b of
-        Nothing -> Nothing
-        Just s' -> unifyList as bs (s <> s')
-
-
+    -- | A logical goal.
     data LGoal = 
-          LPred Ident Int [LTerm]
-        | LTerm :=: LTerm
+          LPred Ident Int [LTerm] -- ^ A predicate with name, arity and arguments.
+        | LTerm :=: LTerm         -- ^ A check for unifiabilty.
 
     instance Show LGoal where
         show (LPred name arity args) = name ++ (if arity == 0 then "" else "(" ++ (intercalate ", " . take arity . map show $ args) ++ ")")
@@ -150,17 +117,16 @@ where
         nextNames (LPred i a ts) = LPred i a (map nextNames ts)
         nextNames (t1 :=: t2) = nextNames t1 :=: nextNames t2
 
-
+    -- ^ A clause list.    
     data LClause =
-          LOr [[LClause]]
-        | LNot [LClause]
-        | LGoal LGoal
+          LOr [[LClause]] -- ^ Disjunction of clause lists.
+        | LNot [LClause]  -- ^ Negation of a clause list.
+        | LGoal LGoal     -- ^ A single goal.
 
     instance Show LClause where
         show (LOr css) = "(" ++ (intercalate "; " . map (intercalate ", " . map show) $ css) ++ ")"
         show (LNot cs)   = "¬(" ++ intercalate ", " (map show cs) ++ ")"
         show (LGoal g)   = show g
-
 
     instance ApplySubst LClause where
         s ~~> LOr css = LOr (map (map (s ~~>)) css)
@@ -172,6 +138,7 @@ where
         nextNames (LNot cs) = LNot . map nextNames $ cs 
         nextNames (LGoal g) = LGoal . nextNames $ g 
 
+    -- | A Prolog like rule. 
     data LRule = LGoal :- [LClause] 
 
     instance Show LRule where
@@ -181,52 +148,146 @@ where
     instance NextNames LRule where
         nextNames (head :- cs) = nextNames head :- map nextNames cs
 
+    {- | A parameterized rule, asking a list of bases for a given clause list, 
+         and returning either just a boolean or, if a binding for a certain variable was sought, its binding. -}
+    data Query = Query [Ident] (Maybe Ident) [Ident] [LClause] 
+
+    instance Show Query where
+        show (Query ps mI bs cs) = case mI of 
+            Nothing -> show bs ++ " ?- " ++ show cs ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
+            Just s  -> show bs ++ " ?- " ++ show cs ++ " for " ++ show s ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
+
+    -- | Generates a new logical variable packed in a term.
+    newVar :: ()
+        => Ident -- ^ Identifier, to name the variable with.
+        -> LTerm -- ^ Term, holding the variable.
+    newVar i = Var (i :$ 0)
+
+    -- | Converts a basic value to a logical term.
+    basicToTerm :: () 
+        => Basic -- ^ Basic value to convert.
+        -> LTerm -- ^ Generated term.
+    basicToTerm (Struct n i as) = LFun n i (map basicToTerm as)
+    basicToTerm b = Atom b
+
+    -- | Converts a term to a basic value, by calling functions and resolving zero-arity-functions to there basic value in the state context.
+    termToBasic :: CoreLogical m 
+        => LTerm     -- ^ Term to convert.
+        -> m [Basic] -- ^ Possible values of the term.
+    termToBasic (Atom b) = return [b]
+    termToBasic (Var v)  = fail $ "ERROR " ++ show v ++ " is unbound."
+    termToBasic (LFun n i as) = if i == 0 
+        then (:[]) <$> (getSymbol n <|> return (Struct n i [])) 
+        else mapM termToBasic as >>= return . parallel >>= \argss -> (choice . map (callFunction n) $ argss) <|> (return . map (Struct n i) $ argss) 
+
+    -- | Occurs check for logical terms.
+    occursIn :: ()
+        => LVar   -- ^ Variable whichs occurance shall be checked.
+        -> LTerm  -- ^ Term in which the variable shall not occur.
+        -> Bool   -- ^ Occurs check result.
+    occursIn var s = case s of
+        Var var' -> var' == var 
+        Atom _   -> False
+        LFun _ _ args -> or . map (occursIn var) $ args
+
+    -- | Generates a new substitution, which replaces the given identifier by the given term.
+    newSubst :: () 
+        => LVar   -- ^ Variable to replace.
+        -> LTerm  -- ^ Term, to which the variable is bound.
+        -> Subst  -- ^ Generated substitution.
+    newSubst var val = Subst $ \x -> apply' x
+        where 
+            apply' x = case x of
+                Var var' -> if var == var' then val else Var var' 
+                Atom b -> Atom  b
+                LFun i n args  -> LFun i n (map apply' args)   
+
+    -- | Unifies two terms and returns a substitution if the terms are unifiable.
+    unify :: () 
+        => LTerm        -- ^ Term a.
+        -> LTerm        -- ^ Term b.
+        -> Maybe Subst  -- ^ Substion or nothing.
+    unify (Atom c1) (Atom c2)              = if c1 == c2 then Just mempty else Nothing
+    unify (Atom c1) (Var  v2)              = Just . newSubst v2 . Atom $ c1
+    unify (Atom c1) (LFun _ _ _)           = Nothing
+    unify (Var  v1) (Atom c2)              = Just . newSubst v1 . Atom $ c2
+    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v1 (Var v2)
+    unify (Var  v1) s                      = if v1 `occursIn` s then Nothing else Just $ newSubst v1 s
+    unify (LFun _ _ _) (Atom _)            = Nothing
+    unify s@(LFun _ _ _) (Var v2)          = if v2 `occursIn` s then Nothing else Just $ newSubst v2 s
+    unify (LFun f a args) (LFun g b args') = if f == g && a == b then unifyList args args' mempty else Nothing
+
+    -- | Unifies two lists of terms and accumulates the resuling substitutions in a given one; returning the final one, of possible.
+    unifyList :: ()
+        => [LTerm]      -- ^ List of terms a.
+        -> [LTerm]      -- ^ List of terms b.
+        -> Subst        -- ^ Substitution to accumulate in.
+        -> Maybe Subst  -- ^ Maybe the final substitution.
+    unifyList [] [] s = Just s 
+    unifyList (a:as) (b:bs) s = case a `unify` b of
+        Nothing -> Nothing
+        Just s' -> unifyList as bs (s <> s')
+
+    -- | Tries to match two predicates, returning a substitution, if there is one.
     match :: ()
-        => LGoal
-        -> LGoal 
-        -> Maybe Subst
-    match p1@(LPred name arity terms) p2@(LPred name' arity' terms') = trace (show p1 ++ " with " ++ show p2) $ if name == name' && arity == arity' 
+        => LGoal        -- ^ Predicate a.
+        -> LGoal        -- ^ Predicate b.
+        -> Maybe Subst  -- ^ Maybe a substitution, unifying a and b.
+    match p1@(LPred name arity terms) p2@(LPred name' arity' terms') = if name == name' && arity == arity' 
         then unifyList terms terms' mempty
         else Nothing
     match _ _ = Nothing
 
+    -- | Tries to match a predicate with a given rule, returning the most general unifier and the clause, by which the given goal must be replaced.
     matchWithRule :: ()
-        => LGoal 
-        -> LRule
-        -> Maybe (Subst, [LClause])
+        => LGoal                    -- ^ Goal to match with...
+        -> LRule                    -- ^ this rule.
+        -> Maybe (Subst, [LClause]) -- ^ Maybe the MGU and the body of the given rule.
     matchWithRule pred (pred' :- clauses) = fmap (flip (,) clauses) $ pred `match` pred'
 
-    search :: (CoreLogical m)
-        => [LClause]
-        -> [LRule]
-        -> Subst 
-        -> m (Bool, [Subst])
-    search [] _ s = return (True, [s])
+    -- | Checks the satisfiability of a given clause list under a given list of rules and a substitution.
+    search :: ()
+        => [LClause]       -- ^ The clauses to check.
+        -> [LRule]         -- ^ The knowledge base.
+        -> Subst           -- ^ The initial substitution.
+        -> (Bool, [Subst]) -- ^ The satisfiability and a list of satisfying bindings. 
+    search [] _ s = (True, [s])
     search (goal:goals) base s = case goal of 
-        LOr css -> do
-            (ss,rs) <- mapM (\cs -> search (cs ++ goals) base s) css >>= return . unzip
-            return (or ss, concat rs)
-        LNot cs    -> do 
-            (succ, _) <- search cs base s
-            if not succ 
+        LOr css -> let
+            (ss,rs) = unzip . map (\cs -> search (cs ++ goals) base s) $ css
+            in (or ss, concat rs)
+        LNot cs -> let 
+            (succ, _) = search cs base s 
+            in if not succ 
                 then search goals base s
-                else return (False, []) 
+                else (False, []) 
         LGoal g -> case g of
-            t1 :=: t2 -> do 
-                (t1s, t2s) <- (,) <$> (map basicToTerm <$> termToBasic t1) <*> (map basicToTerm <$> termToBasic t2)  
-                rs <- forM ((,) <$> t1s <*> t2s) $ \(t1, t2) -> case t1 `unify` t2 of
-                    Nothing -> return (False, [])
+            t1 :=: t2 -> case t1 `unify` t2 of
+                    Nothing -> (False, [])
                     Just s' -> let ss = s <> s' in search (map (ss ~~>) goals) base ss
-                return $ let (successes, results) = unzip rs in (or successes, concat results)
-            predicate -> let matches = [match | Just match <- map (matchWithRule predicate) base] 
-                in do 
-                    (ss, rs) <- unzip <$> mapM (\(s', cs) -> let ss = s <> s' in search (map (ss ~~>) (cs ++ goals)) (map nextNames base) ss) matches 
-                    return (or ss, concat rs)
+            predicate -> let 
+                matches = [match | Just match <- map (matchWithRule predicate) base] 
+                (successes, results) = unzip . map (\(s', cs) -> let ss = s <> s' in search (map (ss ~~>) (cs ++ goals)) (map nextNames base) ss) $ matches 
+                in (or successes, concat results)
 
+    -- | Asks a query under given arguments.
+    askQuery :: (CoreLogical m)
+        => Query     -- ^ Query to ask.
+        -> [Basic]   -- ^ Arguments.
+        -> m [Basic] -- ^ Possible results.
+    askQuery (Query params sought bases clauses) args = let p_as = params `zip` args in do 
+        enter p_as
+        (success, result) <- mapM getBase bases >>= \bs -> return $ search clauses (prepareBase . concat $ bs) mempty 
+        toReturn <- case sought of 
+            Nothing -> return [Boolean success]
+            Just id -> choice . map return =<< return . parallel =<< (mapM termToBasic . map (\s -> s `apply` (newVar id)) $ result)
+        leave
+        return toReturn
 
+    -- | Renames all variables in any rule, in order that they hopefully never collide with variables in any clause.
     prepareBase :: () 
-        => [LRule]
-        -> [LRule]
+        => [LRule] -- ^ Old knowledge base.
+        -> [LRule] -- ^ Prepared one.
     prepareBase = flip evalState 0 . mapM (\r -> newName r >>= \r' -> get >>= put . (+1) >> return r') 
         where 
             newName (pred :- clauses) = (:-) <$> newNamePred pred <*> mapM newNameClause clauses
@@ -234,7 +295,7 @@ where
             newNamePred (LPred n a ts) = LPred n a <$> mapM newNameTerm ts  
             newNamePred (t1 :=: t2) = (:=:) <$> newNameTerm t1 <*> newNameTerm t2  
 
-            newNameTerm (Var _) = get >>= \t -> (return . Var . LVar ("__γράμμα__" ++ show t) $ 0)
+            newNameTerm (Var (i :$ _)) = get >>= \t -> (return . Var $ ("γ_" ++ i ++ show t) :$ 0)
             newNameTerm (LFun n a ts) = LFun n a <$> mapM newNameTerm ts 
             newNameTerm atom = return atom 
 
@@ -244,21 +305,5 @@ where
 
 
 
-{- TEST STUFF -}
 
-    testBase :: [LRule]
-    testBase = prepareBase [
-        LPred "p" 1 [LFun "null" 0 []] :- [],
-        LPred "p" 1 [LFun "succ" 1 [Var . newLVar $ "X"]] :- [LGoal $ LPred "p" 1 [Var . newLVar $ "X"]]
-        ] 
-
-    testBase2 :: [LRule]
-    testBase2 = prepareBase [
-        LPred "p" 1 [Var . newLVar $ "A"] :- [LNot . return . LGoal $ (Var . newLVar $ "A") :=: (LFun "x" 0 [])]
-        ]
-
-    testQuery :: [LClause]
-    testQuery = [LGoal $ LPred "p" 1 [LFun "succ" 1 [LFun "succ" 1 [LFun "succ" 1 [Var . newLVar $ "X"]]]]]
-
-    testQuery2 :: [LClause]
-    testQuery2 = [LOr [[LGoal $ LPred "p" 1 [LFun "x" 0 []]], [LGoal $ LPred "p" 1 [LFun "y" 0 []]]]]
+    

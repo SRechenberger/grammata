@@ -31,7 +31,9 @@ module Grammata.Machine.Core.Class
     GrammataCore (..),
 
     -- * Auxiliary types
-    Ident, Pointer
+    Ident, Pointer, 
+
+    parallel
 )
 where 
 
@@ -44,9 +46,21 @@ where
 
     -- | Grammata core language execution class.
     class (Monad m, Alternative m) => GrammataCore m where
+        -- | Entering a new scope.
+        enter        :: [(Ident, Basic)] -> m ()
+        -- | Leaving the current scope.
+        leave        :: m ()
         -- | Chooses one value from a list.
         choice       :: [m a] -> m a 
         choice = foldr (<|>) empty 
         -- | Calling and running a function, returning it's result.
         callFunction :: Ident -> [Basic] -> m [Basic]
-        getSymbol :: Ident -> m Basic
+        getSymbol    :: Ident -> m Basic
+
+
+    -- | Transforms a list like @[[1],[2,3],[4],[5,6,7]]@ to @[[1,2,4,5],[1,2,4,6],[1,2,4,7],[1,3,4,5],[1,3,4,6],[1,3,4,7]]@.
+    parallel :: (Show a) 
+        => [[a]] -- ^ Input list.
+        -> [[a]] -- ^ Output list.
+    parallel [] = [[]]
+    parallel (xs:xss) = [x:ys | x <- xs, ys <- parallel xss]
