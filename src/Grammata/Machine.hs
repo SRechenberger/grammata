@@ -25,8 +25,8 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Machine
 (
-    module Grammata.Machine.Storage,
-    module Grammata.Machine.Types,
-    module Grammata.Machine.Monad
+    module Grammata.Machine.Core
 )
 where
+
+    import Grammata.Machine.Core 

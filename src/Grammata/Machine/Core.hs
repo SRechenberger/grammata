@@ -28,17 +28,25 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 module Grammata.Machine.Core
 (
     -- * Auxiliary types
-    
+    Ident, Pointer, Subprogram (..),
 
-    -- * Submodules.
+    -- * Core Language
+    runProgram, Basic (..),
+    -- ** Imperative
+    CoreStatement (..), CoreMethod (..),
+
+    -- ** Functional
+    CoreLambda (..),
+
+    -- ** Logical
+    CoreRule (..), CoreClause (..), CoreGoal (..), CoreQuery (..), CoreTerm (..), newVar
 )
 where   
 
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
-    import Grammata.Machine.Core.Imperative (CoreStatement (..), Expression (..), runFunction, runProcedure, CoreImperative (..), Method (..))
+    import Grammata.Machine.Core.Imperative (CoreStatement (..), Expression (..), runFunction, runProcedure, CoreImperative (..), CoreMethod (..))
     import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), reduce, callLambda)
-    import Grammata.Machine.Core.Logical (CoreLogical (..), askQuery, Query (..), LRule (..), LClause (..), LGoal (..), newVar)
-    import qualified Grammata.Machine.Core.Logical as L (LTerm (..))
+    import Grammata.Machine.Core.Logical (CoreLogical (..), askQuery, CoreQuery (..), CoreRule (..), CoreClause (..), CoreGoal (..), CoreTerm (..), newVar)
     import Grammata.Machine.Core.Types (Basic (..))
 
     import Grammata.Machine.Grammateion (Grammateion, runGrammateion, get, put, ask)
@@ -53,13 +61,13 @@ where
     -- | Union type for subprograms.
     data Subprogram m = 
         -- | Imperative subprogram; i.e. functions or procedures.
-          Imperative (Method m) 
+          Imperative (CoreMethod m) 
         -- | Functional subprogram; i.e. a lambda expression.
         | Functional (CoreLambda m) 
         -- | Logical subprogram; i.e. a query
-        | Logical Query
+        | Logical CoreQuery
         -- | Knowledge bases
-        | Base [LRule]
+        | Base [CoreRule]
 
     -- | A dictionary, identifying methods with identifiers.
     data Dict = Dict [(Ident, Subprogram Machine)]
@@ -130,13 +138,13 @@ where
 
 {- TEST STUFF -}
 
-    fak :: Method Machine
+    fak :: CoreMethod Machine
     fak = Method [] ["n"] [
-            IIf (Op (\(Natural n:_) -> return . Boolean $ n <= 1) [Var "n"]) 
-                [IReturn (Val (Natural 1))] 
-                [IReturn (Op (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
-                    Var "n", 
-                    Func "fak2" [Op (\(Natural n1:_) -> return . Natural $ n1 - 1) [Var "n"]]
+            IIf (IOp (\(Natural n:_) -> return . Boolean $ n <= 1) [IVar "n"]) 
+                [IReturn (IVal (Natural 1))] 
+                [IReturn (IOp (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
+                    IVar "n", 
+                    IFunc "fak2" [IOp (\(Natural n1:_) -> return . Natural $ n1 - 1) [IVar "n"]]
                     ])
                 ]
         ]
@@ -174,35 +182,35 @@ where
         (Dict [("fak2", Functional fak')]) 
         (Storage newIStorage newFStorage) >>= return . fst
 
-    testBase :: [LRule]
+    testBase :: [CoreRule]
     testBase = [
-        LPred "p" 1 [L.LFun "null" 0 []] :- [],
-        LPred "p" 1 [L.LFun "succ" 1 [newVar "X"]] :- [LGoal $ LPred "p" 1 [newVar "X"]]
+        LPred "p" 1 [LFun "null" 0 []] :- [],
+        LPred "p" 1 [LFun "succ" 1 [newVar "X"]] :- [LGoal $ LPred "p" 1 [newVar "X"]]
         ] 
 
-    testBase2 :: [LRule]
+    testBase2 :: [CoreRule]
     testBase2 = [
-        LPred "p" 1 [newVar "A"] :- [LNot . return . LGoal $ (newVar "A") :=: (L.LFun "x" 0 [])]
+        LPred "p" 1 [newVar "A"] :- [LNot . return . LGoal $ (newVar "A") :=: (LFun "x" 0 [])]
         ]
 
-    testBase3 :: [LRule]
+    testBase3 :: [CoreRule]
     testBase3 = [
-        LPred "p" 1 [newVar "Y"] :- [LOr [[LGoal $ (newVar "Y") :=: (L.LFun "x" 0 [])], [(LGoal (newVar "Y" :=: L.LFun "y" 0 []))]]]
+        LPred "p" 1 [newVar "Y"] :- [LOr [[LGoal $ (newVar "Y") :=: (LFun "x" 0 [])], [(LGoal (newVar "Y" :=: LFun "y" 0 []))]]]
         ]
 
-    testBase4 :: [LRule]
+    testBase4 :: [CoreRule]
     testBase4 = [
-        LPred "p" 1 [L.LFun "x" 0 []] :- [],
-        LPred "p" 1 [L.LFun "y" 0 []] :- []
+        LPred "p" 1 [LFun "x" 0 []] :- [],
+        LPred "p" 1 [LFun "y" 0 []] :- []
         ]
 
-    testQuery :: Query
-    testQuery = Query [] (Just "X") ["b1"] [LGoal $ LPred "p" 1 [L.LFun "succ" 1 [L.LFun "succ" 1 [L.LFun "succ" 1 [newVar "X"]]]]]
+    testQuery :: CoreQuery
+    testQuery = Query [] (Just "X") ["b1"] [LGoal $ LPred "p" 1 [LFun "succ" 1 [LFun "succ" 1 [LFun "succ" 1 [newVar "X"]]]]]
 
-    testQuery2 :: Query
-    testQuery2 = Query [] Nothing ["b2"] [LOr [[LGoal $ LPred "p" 1 [L.LFun "x" 0 []]], [LGoal $ LPred "p" 1 [L.LFun "y" 0 []]]]]
+    testQuery2 :: CoreQuery
+    testQuery2 = Query [] Nothing ["b2"] [LOr [[LGoal $ LPred "p" 1 [LFun "x" 0 []]], [LGoal $ LPred "p" 1 [LFun "y" 0 []]]]]
 
-    testQuery3 :: Query
+    testQuery3 :: CoreQuery
     testQuery3 = Query [] (Just "X") ["b3"] [LGoal . LPred "p" 1 . return . newVar $ "X"]
 
 --    runtestQ1 :: Either String Basic

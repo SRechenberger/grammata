@@ -38,7 +38,7 @@ module Grammata.Machine.Core.Imperative
     Expression (..),
     
     -- * Imperative Method
-    Method (..),    
+    CoreMethod (..),    
     runProcedure,
     runFunction
 )
@@ -51,7 +51,7 @@ where
     import Control.Monad (forM)
 
     -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
-    data Method m = Method [(Ident, Expression m)] [Ident] [CoreStatement m] 
+    data CoreMethod m = Method [(Ident, Expression m)] [Ident] [CoreStatement m] 
 
 
     -- | Imperative core language AST.
@@ -72,13 +72,13 @@ where
     -- | Arithmetical Expression AST.
     data Expression m = 
         -- | <IDENT>
-          Var Ident
+          IVar Ident
         -- | <BASIC>
-        | Val Basic
+        | IVal Basic
         -- | <OP> <BASIC>*
-        | Op ([Basic] -> m Basic) [Expression m]
+        | IOp ([Basic] -> m Basic) [Expression m]
         -- | <IDENT> (<EXPR>*)
-        | Func Ident [Expression m]
+        | IFunc Ident [Expression m]
 
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
@@ -99,14 +99,14 @@ where
         => [(Ident, Expression m)]  -- ^ Temporary auxiliary symbol table.
         -> Expression m             -- ^ Expression to evaluate.
         -> m [Basic]                -- ^ List of possible results.
-    evalExpression tmp (Var id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= return . return)
+    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= return . return)
         where 
             readTemp tmp = case id `lookup` tmp of
                 Nothing -> fail $ "Cannot find " ++ id ++ " in TMP."
                 Just e  -> return e
-    evalExpression _ (Val bsc) = return [bsc] 
-    evalExpression tmp (Op f args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (\args -> f args >>= return . (:[])) 
-    evalExpression tmp (Func name args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (callFunction name)
+    evalExpression _ (IVal bsc) = return [bsc] 
+    evalExpression tmp (IOp f args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (\args -> f args >>= return . (:[])) 
+    evalExpression tmp (IFunc name args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (callFunction name)
 
     -- | Evaluates a expression and extracts a boolean.
     evalToBoolean :: CoreImperative m 
@@ -130,7 +130,7 @@ where
 
     -- | Runs a method as a function taking its arguments and returing a result.
     runFunction :: CoreImperative m 
-        => Method m     -- ^ Method to run.
+        => CoreMethod m     -- ^ Method to run.
         -> [Basic]      -- ^ Arguments.
         -> m Basic      -- ^ Result.
     runFunction (Method locals params code) args = let pLocals = params `zip` args in do 
@@ -158,7 +158,7 @@ where
 
     -- | Runs a method as a procedure taking its arguments.
     runProcedure :: CoreImperative m 
-        => Method m     -- ^ Method to run.
+        => CoreMethod m     -- ^ Method to run.
         -> [Basic]      -- ^ Arguments.
         -> m ()         -- ^ Void.
     runProcedure (Method locals params code) args = let pLocals = params `zip` args in do 
