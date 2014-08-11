@@ -23,7 +23,6 @@ You should have received a copy of the GNU General Public License
 along with grammata. If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 
 module Grammata.Machine.Core.Functional
 (
@@ -43,8 +42,6 @@ where
     import Control.Applicative ((<*>), (<$>), pure, (<|>))
 
     import Data.List (intercalate)
-
-    import Debug.Trace
 
     -- | Core language lambda expressions.
     data CoreLambda m = 

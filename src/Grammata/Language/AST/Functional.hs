@@ -25,6 +25,28 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST.Functional
 (
-    
+    Lambda (..)
 )
 where
+
+    import Grammata.Language.AST.Expression (Expression)
+    import Grammata.Language.AST.Value (Value)
+
+    -- | Lambda expressions.
+    -- | <LAMBDA> ::=
+    data Lambda = 
+        -- | <IDENT>
+          Symbol String
+        -- | <VALUE>
+        | Value Value
+        -- | <EXPRESSION>
+        | Arith (Expression Lambda)
+        -- | if <LAMBDA> then <LAMBDA> else <LAMBDA>
+        | Cond Lambda Lambda Lambda
+        -- | '\' <IDENT>* '.' <LAMBDA>
+        | Abstr [String] Lambda 
+        -- | <LAMBDA> <LAMBDA>*
+        | Appl Lambda [Lambda]
+        -- | 'let' (<IDENT> '=' <LAMBDA>)* 'in' <LAMBDA>
+        | Let [(String, Lambda)] Lambda
+        deriving (Show, Eq)

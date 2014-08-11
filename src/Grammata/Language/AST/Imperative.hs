@@ -25,6 +25,35 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST.Imperative
 (
-    
+    Looptype (..), Statement (..)
 )
 where
+
+    import Grammata.Language.AST.Value (Value)
+    import Grammata.Language.AST.Expression (Expression)
+
+    -- | @LOOP@ ::= 
+    data Looptype = 
+        -- | 'for' @IDENT@ 'from' @EXPR@ 'to' @EXPR@ 'do' @STMT@* 'end'
+          For String (Expression Value) (Expression Value)
+        -- | 'do' @STMT@* 'while' @EXPR@ 'end'
+        | DoWhile (Expression Value)
+        -- | 'while' @EXPR@ 'do' @STMT@* 'end'
+        | While (Expression Value)
+        deriving (Show, Eq)
+
+    -- | @STMT@ ::= 
+    data Statement = 
+        -- | @IDENT@ ':=' @EXPR@
+          String := Expression Value
+        -- | @LOOP@
+        | Loop Looptype [Statement]
+        -- | 'if' @EXPR@ 'then' @STMT@* 'else' @STMT@* 'end'
+        | If (Expression Value) [Statement] [Statement]
+        -- | 'call' @IDENT@ '(' [[@EXPR@ ','] @EXPR@] ')'
+        | Call String [Expression Value]
+        -- | 'return' @EXPR@
+        | Return (Expression Value)
+        -- | 'exit'
+        | Exit
+        deriving (Show, Eq)

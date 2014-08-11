@@ -25,8 +25,43 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST
 (
-    module Grammata.Language.AST.Functional
-    module Grammata.Language.AST.Imperative
-    module Grammata.Language.AST.Logical
+    Subprogram (..), Program (..)
 )
 where
+
+    import Grammata.Language.AST.Expression (Expression)
+    import Grammata.Language.AST.Functional (Lambda)
+    import Grammata.Language.AST.Imperative (Statement)
+    import Grammata.Language.AST.Logical (Rule, Clause)
+    import Grammata.Language.AST.Value (Value)
+
+    -- | Simple return type to distinguish procedures and functions.
+    data Returns = 
+        -- | Function returns nothing. 
+          Void 
+        -- | Function returns something.
+        | Val
+        deriving (Show, Eq)
+
+    {- | Grammata Subprograms.
+
+         @LOWER@ ::= 'a' | 'b' | ... | 'z'
+
+         @IDENT@ ::= @LOWER@ [@LOWER@ | @UPPER@ | '_' | @DIGIT@]*
+
+         @SPRG@ ::= -}
+    data Subprogram = 
+        -- | 'proc' @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' ['with' (@IDENT@ ':=' @EXPR@;)+] 'does' (@STMT@ ';')* 'end'
+          Procedure Returns String [String] [(String, Expression Value)] [Statement]
+        -- | 'lambda' @IDENT@ '=' '\' @IDENT@* '.' @LAMBDA@
+        | Lambda String [String] Lambda
+        -- | 'ask' [@IDENT@+ '?-'] @CLAUSE@ ['for' @IDENT@] 
+        | Query [String] (Maybe String) Clause
+        -- | 'base' @IDENT@ 'says' @RULE@+ 'end'
+        | Base String [Rule]
+        deriving(Show, Eq)
+
+    {- | A Grammata program.
+         @PRG@ ::= 'program' [@IDENT@ '=' @EXPR@]* [@SPRG@ ';']* 'end' -}
+    data Program = Program {globals :: [(String, Value)] {- ^ Global identifiers. -}, subs :: [(String, Subprogram)] {- ^ Subprograms. -}}
+        deriving (Show, Eq)

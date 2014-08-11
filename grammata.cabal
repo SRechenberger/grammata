@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                grammata
-version:             0.2.0.15
+version:             0.2.0.16
 synopsis:            Grammata-script interpreter
 -- description:         
 homepage:            https://github.com/SRechenberger/grammata
@@ -27,6 +27,12 @@ executable grammata
                        Grammata.Machine.Storage,
                        Grammata.Machine.Storage.Imperative,
                        Grammata.Machine.Storage.Functional,
-                       Grammata.Machine.Storage.Logical
+                       Grammata.Machine.Storage.Logical,
+                       Grammata.Language.AST,
+                       Grammata.Language.AST.Expression,
+                       Grammata.Language.AST.Functional,
+                       Grammata.Language.AST.Imperative,
+                       Grammata.Language.AST.Logical,
+                       Grammata.Language.AST.Value
   build-depends:       base == 4.*, mtl == 2.*, transformers == 0.*, either == 4.*, array == 0.*, containers == 0.5.*
   hs-source-dirs:      src

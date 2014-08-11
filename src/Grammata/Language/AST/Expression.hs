@@ -39,12 +39,18 @@ where
     -- | Operators reperesented as strings.
     type Op = String
 
-    -- | Arithmetical expressions, parametrized over the AST in which they are use.
+    {- | Arithmetical expressions, parametrized over the AST in which they are use. May also be interpreted as structured data.
+         @EXPR@ ::= -}
     data Expression ast = 
-          Const ast                                  -- ^ A constant.
-        | BinOp (Expression ast) Op (Expression ast) -- ^ A binary operation.
-        | UnOp Op (Expression ast)                   -- ^ A unary operation.
-        | Func Op [Expression ast]                   -- ^ A function application.
+        -- | @AST@ 
+          Const ast         
+        -- | @EXPR@ @OP@ @EXPR@
+        | BinOp (Expression ast) Op (Expression ast) 
+        -- | @OP@ @EXPR@
+        | UnOp Op (Expression ast)                   
+        -- | @IDENT@ '(' [[@EXPR@ ',']* @EXPR@] ')'
+        | Func Op [Expression ast]                  
+        deriving(Eq)
 
     instance Show ast => Show (Expression ast) where
         show (Const ast) = show ast 

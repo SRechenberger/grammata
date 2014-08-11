@@ -25,6 +25,48 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST.Logical
 (
-    
+    Term (..), Goal (..), Clause (..), Rule (..), Base
 )
 where
+
+    import Grammata.Language.AST.Value (Value)
+    import Grammata.Language.AST.Expression (Expression)
+
+    -- | @TERM@ ::=
+    data Term = 
+        -- | @VALUE@
+          Val Value
+        -- | @IDENT@
+        | Var String
+        -- | @EXPR@
+        | Expr (Expression Term)
+        deriving (Show, Eq)
+
+    -- | @GOAL@ ::=
+    data Goal = 
+        -- | @IDENT@ ['(' [@TERM@ ','] @TERM@ ')']
+          Predicate String [Term]
+        -- | @TERM@ '=' @TERM@
+        | Term :=: Term 
+        deriving (Show, Eq)
+
+    -- | @CLAUSE@ ::=
+    data Clause = 
+        -- | @GOAL@
+          Pos Goal
+        -- | '-' @CLAUSE@
+        | Neg Clause
+        -- | @CLAUSE@ ',' @CLAUSE@
+        | Clause :&& Clause
+        -- | @CLAUSE@ ';' @CLAUSE@
+        | Clause :|| Clause
+        deriving (Show, Eq)
+
+    -- | @RULE@ ::= @IDENT@ ['(' [@TERM@ ',']* @TERM@ ')'] ':-' @CLAUSE@ '.'
+    data Rule = Goal :- Clause
+        deriving (Show, Eq)
+
+    -- | @BASE@ ::= [@RULE@*]
+    type Base = [Rule]
+
+    
