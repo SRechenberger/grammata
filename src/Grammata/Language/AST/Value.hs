@@ -29,6 +29,11 @@ module Grammata.Language.AST.Value
 )
 where
     
+    import Text.Parsec (many1, try, char, digit, string)
+    import Text.Parsec.String (Parser)
+
+    import Control.Applicative ((<|>), (<*), (*>), pure, (<$>))
+
     -- | <DIGIT> ::= 0 | 1 | 2 | ... | 9
     -- | <VALUE> ::= 
     data Value =
@@ -40,4 +45,13 @@ where
         | Boolean Bool 
         deriving (Show, Eq)
 
-    
+
+    value :: Parser Value 
+    value = try real <|> natural <|> boolean 
+        where
+            natural = Natural . read <$> many1 digit 
+            real    = do 
+                pre <- try (char '.' *> pure "0") <|> (many1 digit <* char '.')
+                post <- many1 digit 
+                return . Real . read $ pre ++ '.':post
+            boolean = Boolean <$> (try (string "true" *> pure True) <|> (string "false" *> pure False))

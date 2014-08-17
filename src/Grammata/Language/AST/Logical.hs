@@ -44,7 +44,7 @@ where
 
     -- | @GOAL@ ::=
     data Goal = 
-        -- | @IDENT@ ['(' [@TERM@ ','] @TERM@ ')']
+        -- | @IDENT@ ['(' @TERM@ [',' @TERM@]* ')']
           Predicate String [Term]
         -- | @TERM@ '=' @TERM@
         | Term :=: Term 
@@ -62,11 +62,11 @@ where
         | Clause :|| Clause
         deriving (Show, Eq)
 
-    -- | @RULE@ ::= @IDENT@ ['(' [@TERM@ ',']* @TERM@ ')'] ':-' @CLAUSE@ '.'
+    -- | @RULE@ ::= @IDENT@ ['(' @TERM@ [',' @TERM@]* ')'] ':-' @CLAUSE@ '.'
     data Rule = Goal :- Clause
         deriving (Show, Eq)
 
-    -- | @BASE@ ::= [@RULE@*]
+    -- | @BASE@ ::= [@RULE@]*
     type Base = [Rule]
 
     

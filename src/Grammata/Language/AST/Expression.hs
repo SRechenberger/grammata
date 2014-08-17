@@ -34,7 +34,10 @@ module Grammata.Language.AST.Expression
 where
 
     import Data.List (intercalate)
-    import Control.Applicative (Applicative (pure, (<*>)))
+    import Control.Applicative (Applicative (pure, (<*>)), (*>), (<*), (<|>), (<$>))
+
+    import Text.Parsec (chainl1, choice, string, oneOf, many1, between, lower, char, sepBy, spaces)
+    import Text.Parsec.String (Parser)
 
     -- | Operators reperesented as strings.
     type Op = String
@@ -48,7 +51,7 @@ where
         | BinOp (Expression ast) Op (Expression ast) 
         -- | @OP@ @EXPR@
         | UnOp Op (Expression ast)                   
-        -- | @IDENT@ '(' [[@EXPR@ ',']* @EXPR@] ')'
+        -- | @IDENT@ '(' [@EXPR@ [@EXPR@ ',']*] ')'
         | Func Op [Expression ast]                  
         deriving(Eq)
 
@@ -80,4 +83,25 @@ where
             fold (BinOp e1 op e2) = binop (fold e1) op (fold e2)
             fold (UnOp op e)      = unop op (fold e)
             fold (Func op es)     = func op (map fold es)
+
+
+    class Eq value => ParseExprVal value where
+        parseExprVal :: Parser value 
+
+    leftAssoc :: Parser (Expression value) -> [[String]] -> Parser (Expression value)
+    leftAssoc c = foldr (\ops i -> chainl1 i (choice $ map binop ops)) c
+        where 
+            binop :: String -> Parser (Expression ast -> Expression ast -> Expression ast)
+            binop op = string op *> pure (\e1 e2 -> BinOp e1 op e2)
+
+    expression :: (ParseExprVal value) => Parser (Expression value)
+    expression = leftAssoc expr [["*", "/"], ["+", "-"], ["==", "!=", "<=", ">=", "<", ">"], ["&&", "||", "<>"]]
+        where 
+            expr = brackets <|> unop <|> function <|> value
+
+            brackets = char '(' *> expression <* char ')'
+            unop = (\op -> UnOp [op]) <$> oneOf "-!" <*> expression
+            function = Func <$> many1 lower <*> (between (char '(') (char ')') (many1 expression) <|> pure []) 
+            value = Const <$> parseExprVal
+
 

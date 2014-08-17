@@ -50,7 +50,7 @@ where
         | Loop Looptype [Statement]
         -- | 'if' @EXPR@ 'then' @STMT@* 'else' @STMT@* 'end'
         | If (Expression Value) [Statement] [Statement]
-        -- | 'call' @IDENT@ '(' [[@EXPR@ ','] @EXPR@] ')'
+        -- | 'call' @IDENT@ '(' [@EXPR@ [',' @EXPR@]*] ')'
         | Call String [Expression Value]
         -- | 'return' @EXPR@
         | Return (Expression Value)

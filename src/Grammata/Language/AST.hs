@@ -25,15 +25,21 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST
 (
-    Subprogram (..), Program (..)
+    -- * Grammata 
+    Program (..), Value (..), Expression (..), Return (..),
+    -- * Subprograms
+    Subprogram (..), 
+    Lambda (..),
+    Statement (..),
+    Rule (..), Clause (..)
 )
 where
 
-    import Grammata.Language.AST.Expression (Expression)
-    import Grammata.Language.AST.Functional (Lambda)
-    import Grammata.Language.AST.Imperative (Statement)
-    import Grammata.Language.AST.Logical (Rule, Clause)
-    import Grammata.Language.AST.Value (Value)
+    import Grammata.Language.AST.Expression (Expression (..))
+    import Grammata.Language.AST.Functional (Lambda (..))
+    import Grammata.Language.AST.Imperative (Statement (..))
+    import Grammata.Language.AST.Logical (Rule (..), Clause (..))
+    import Grammata.Language.AST.Value (Value (..))
 
     -- | Simple return type to distinguish procedures and functions.
     data Returns = 

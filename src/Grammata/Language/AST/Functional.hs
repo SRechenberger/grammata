@@ -41,7 +41,7 @@ where
         | Value Value
         -- | <EXPRESSION>
         | Arith (Expression Lambda)
-        -- | if <LAMBDA> then <LAMBDA> else <LAMBDA>
+        -- | 'if' <LAMBDA> 'then' <LAMBDA> 'else' <LAMBDA>
         | Cond Lambda Lambda Lambda
         -- | '\' <IDENT>* '.' <LAMBDA>
         | Abstr [String] Lambda 
