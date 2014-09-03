@@ -1,6 +1,6 @@
 {-|
 Module : Grammata.Language.AST.Expression
-Description : Grammata abstract syntax tree for arithmetical expressions.
+Description : Grammata abstract syntax tree for arithmetical parseExpressions.
 Maintainer : sascha.rechenberger@uni-ulm.de
 Stability : stable
 Portability : portable
@@ -29,20 +29,26 @@ module Grammata.Language.AST.Expression
     Expression (..),
 
     -- * Auxiliaries
-    Op, foldExpression
+    Op, foldExpression, ParseExprVal (..), parseExpression
 )
 where
 
     import Data.List (intercalate)
+    import Data.Char (isAlphaNum)
+    import Data.Word
     import Control.Applicative (Applicative (pure, (<*>)), (*>), (<*), (<|>), (<$>))
 
-    import Text.Parsec (chainl1, choice, string, oneOf, many1, between, lower, char, sepBy, spaces)
+    import Text.Parsec (try, alphaNum, chainl1, choice, string, oneOf, many1, many, between, lower, char, sepBy, spaces, (<?>), parse, digit)
     import Text.Parsec.String (Parser)
+
+    import Debug.Trace
+
+    import Test.QuickCheck
 
     -- | Operators reperesented as strings.
     type Op = String
 
-    {- | Arithmetical expressions, parametrized over the AST in which they are use. May also be interpreted as structured data.
+    {- | Arithmetical parseExpressions, parametrized over the AST in which they are use. May also be interpreted as structured data.
          @EXPR@ ::= -}
     data Expression ast = 
         -- | @AST@ 
@@ -53,13 +59,13 @@ where
         | UnOp Op (Expression ast)                   
         -- | @IDENT@ '(' [@EXPR@ [@EXPR@ ',']*] ')'
         | Func Op [Expression ast]                  
-        deriving(Eq)
+        deriving(Eq)    
 
     instance Show ast => Show (Expression ast) where
         show (Const ast) = show ast 
         show (BinOp e1 op e2) = "(" ++ show e1 ++ " " ++ op ++ " " ++ show e2 ++ ")"
-        show (UnOp op e) = op ++ show e 
-        show (Func op es) = op ++ "(" ++ intercalate ", " (map show es) ++ ")"
+        show (UnOp op e) = "(" ++ op ++ show e ++ ")"
+        show (Func op es) = op ++ if null es then "" else "(" ++ intercalate ", " (map show es) ++ ")"
 
     instance Functor Expression where
         fmap f = foldExpression (Const . f) BinOp UnOp Func
@@ -69,14 +75,14 @@ where
         treeF <*> Const x = fmap (\f -> f x) treeF
         treeF <*> treeA   = foldExpression (\x -> treeF <*> pure x) BinOp UnOp Func treeA
 
-    -- | Fold function for arithmetical expressions.
+    -- | Fold function for arithmetical parseExpressions.
     foldExpression :: () 
         => (ast -> result)                    -- ^ Const ast 
         -> (result -> Op -> result -> result) -- ^ BinOp (Expression ast) Op (Expression ast) 
         -> (Op -> result -> result)           -- ^ UnOp Op (Expression ast) 
         -> (Op -> [result] -> result)         -- ^ Func Op [Expression ast]
         -> Expression ast                     -- ^ Expression to fold.
-        -> result                             -- ^ Folded expression.
+        -> result                             -- ^ Folded parseExpression.
     foldExpression const binop unop func = fold 
         where
             fold (Const ast)      = const ast 
@@ -85,23 +91,60 @@ where
             fold (Func op es)     = func op (map fold es)
 
 
+    -- | Interface for parametrized parsing of arithmetical expressions.
     class Eq value => ParseExprVal value where
         parseExprVal :: Parser value 
 
-    leftAssoc :: Parser (Expression value) -> [[String]] -> Parser (Expression value)
-    leftAssoc c = foldr (\ops i -> chainl1 i (choice $ map binop ops)) c
+    token :: String -> Parser String 
+    token t = spaces >> string t >> spaces >> return t
+
+    infixr 5 <<<
+
+    (<<<) :: [String] -> Parser (Expression value) -> Parser (Expression value)
+    ops <<< parser = do 
+        e1 <- parser 
+        others <- many . try $ do 
+            op <- choice . map (try . token) $ ops 
+            e2 <- parser 
+            return (op, e2)
+        return $ case others of 
+            [] -> e1
+            es -> foldl (\e1 (op, e2) -> BinOp e1 op e2) e1 es
+
+    -- | Parses a arithmetical Expression.
+    parseExpression :: ParseExprVal value => Parser (Expression value)
+    parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< expr 
         where 
-            binop :: String -> Parser (Expression ast -> Expression ast -> Expression ast)
-            binop op = string op *> pure (\e1 e2 -> BinOp e1 op e2)
-
-    expression :: (ParseExprVal value) => Parser (Expression value)
-    expression = leftAssoc expr [["*", "/"], ["+", "-"], ["==", "!=", "<=", ">=", "<", ">"], ["&&", "||", "<>"]]
-        where 
-            expr = brackets <|> unop <|> function <|> value
-
-            brackets = char '(' *> expression <* char ')'
-            unop = (\op -> UnOp [op]) <$> oneOf "-!" <*> expression
-            function = Func <$> many1 lower <*> (between (char '(') (char ')') (many1 expression) <|> pure []) 
-            value = Const <$> parseExprVal
+            expr = UnOp <$> ((:[]) <$> between spaces spaces (oneOf "-!"))  <*> expr 
+                <|> Const <$> try parseExprVal
+                <|> Func <$> ((:) <$> lower <*> many alphaNum) <*> ((try (token "(") *> sepBy parseExpression (token ",") <* token ")") <|> pure [])
+                <|> try (token "(") *> parseExpression <* token ")"
 
 
+-- QuickCheck for parsing
+
+    instance ParseExprVal Word where
+        parseExprVal = read <$> many1 digit
+
+    instance Arbitrary a => Arbitrary (Expression a) where
+        arbitrary = do 
+            dice <- choose (0,3) :: Gen Int 
+            case dice of
+                0 -> Const <$> arbitrary
+                1 -> BinOp <$> arbitrary <*> elements ["+", "-", "*", "/", "==", "!=", "<=", ">=", "<", ">", "||", "&&"] <*> arbitrary
+                2 -> UnOp <$> elements ["-", "!"] <*> arbitrary
+                3 -> do 
+                    f <- choose ('a','z')
+                    fs <- listOf . elements . filter isAlphaNum $ ['0'..'z'] 
+                    args <- listOf arbitrary
+                    return $ Func (f:fs) args
+
+    parses_correctly :: Expression Word -> Bool
+    parses_correctly x = case p (show x) of
+        Left msg -> False 
+        Right x' -> x == x'
+        
+    p = parse (parseExpression :: Parser (Expression Word)) ""
+
+--    check :: IO ()
+    check = quickCheckWith stdArgs{maxSize = 10} parses_correctly

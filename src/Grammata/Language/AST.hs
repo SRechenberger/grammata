@@ -26,7 +26,7 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 module Grammata.Language.AST
 (
     -- * Grammata 
-    Program (..), Value (..), Expression (..), Return (..),
+    Program (..), Value (..), Expression (..), Returns (..),
     -- * Subprograms
     Subprogram (..), 
     Lambda (..),

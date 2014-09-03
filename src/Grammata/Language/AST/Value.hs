@@ -25,14 +25,17 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language.AST.Value
 (
-    Value (..)
+    Value (..),
+    value
 )
 where
     
-    import Text.Parsec (many1, try, char, digit, string)
+    import Text.Parsec (many1, try, char, digit, string, parse, lookAhead, anyChar, spaces)
     import Text.Parsec.String (Parser)
 
     import Control.Applicative ((<|>), (<*), (*>), pure, (<$>))
+
+    import Test.QuickCheck
 
     -- | <DIGIT> ::= 0 | 1 | 2 | ... | 9
     -- | <VALUE> ::= 
@@ -43,15 +46,75 @@ where
         | Real Double
         -- | 'true' | 'false'
         | Boolean Bool 
-        deriving (Show, Eq)
+        deriving (Eq)
 
 
-    value :: Parser Value 
-    value = try real <|> natural <|> boolean 
-        where
-            natural = Natural . read <$> many1 digit 
-            real    = do 
-                pre <- try (char '.' *> pure "0") <|> (many1 digit <* char '.')
-                post <- many1 digit 
-                return . Real . read $ pre ++ '.':post
-            boolean = Boolean <$> (try (string "true" *> pure True) <|> (string "false" *> pure False))
+    instance Show Value where
+        show (Natural i) = show i
+        show (Real d)    = show d 
+        show (Boolean b) = if b then "true" else "false" 
+
+    value :: Parser Value
+    value = do 
+        spaces
+        la <- lookAhead anyChar
+        case la of
+            't' -> string "true" >> return (Boolean True)
+            'f' -> string "false" >> return (Boolean False)
+            c   -> do 
+                pre <- many1 digit
+                la <- lookAhead (anyChar <|> pure '#') 
+                case la of
+                    '.' -> do 
+                        char '.'
+                        post <- many1 digit
+                        la <- lookAhead (anyChar <|> pure '#') 
+                        case la of 
+                            'e' -> do 
+                                char 'e'
+                                la <- lookAhead anyChar
+                                case la of
+                                    '+' -> do 
+                                        char '+'
+                                        exp <- many1 digit 
+                                        return . Real . read $ pre ++ '.':post ++ 'e':'+':exp
+                                    '-' -> do 
+                                        char '-'
+                                        exp <- many1 digit 
+                                        return . Real . read $ pre ++ '.':post ++ 'e':'-':exp
+                                    _   -> do 
+                                        exp <- many1 digit
+                                        return . Real . read $ pre ++ '.':post ++ 'e':exp
+                            _   -> return . Real . read $ pre ++ '.':post
+                    'e' -> do 
+                        char 'e'
+                        la <- lookAhead anyChar
+                        case la of
+                            '+' -> do 
+                                char '+'
+                                exp <- many1 digit 
+                                return . Real . read $ pre ++ 'e':'+':exp
+                            '-' -> do 
+                                char '-'
+                                exp <- many1 digit 
+                                return . Real . read $ pre ++ 'e':'-':exp
+                            _   -> do 
+                                exp <- many1 digit
+                                return . Real . read $ pre ++ 'e':exp
+                    _   -> return . Natural . read $ pre 
+
+
+    instance Arbitrary Value where
+        arbitrary = do 
+            dice <- choose (0,2) :: Gen Int
+            case dice of
+                0 -> Natural <$> (arbitrary `suchThat` (>= 0))
+                1 -> Real <$> (arbitrary `suchThat` (>= 0))
+                2 -> Boolean <$> arbitrary
+
+    parses_correctly :: Value -> Bool 
+    parses_correctly val = case parse value "" (show val) of
+        Left msg -> False 
+        Right val' -> val' == val
+
+    check = quickCheck parses_correctly
