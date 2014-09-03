@@ -36,7 +36,7 @@ where
 
     import Control.Applicative (Applicative (pure, (<*>)), (*>), (<*), (<|>), (<$>))
 
-    import Text.Parsec (chainl1, many1, try, lower, sepBy, lookAhead, spaces, space, string, char, letter, alphaNum, many, parse, eof, choice, manyTill, (<?>), anyChar)
+    import Text.Parsec (chainl1, many1, try, lower, sepBy, between, lookAhead, spaces, space, string, char, letter, alphaNum, many, parse, eof, choice, manyTill, (<?>), anyChar)
     import Text.Parsec.String (Parser)
 
     import Debug.Trace
@@ -111,7 +111,7 @@ where
 
     {- | Parses a functional subprogram by the grammar:
 
-        'FUNCTION'  ::= 'begin' 'LAMBDA' 'end'
+        'FUNCTION'  ::= 'lambda' IDENT '(' IDENT* ')' 'is' 'LAMBDA' 'end'
         'LAMBDA'    ::= 'ARITH' 'ARITH'*
         'ARITH'     ::= 'DISJ' ('||' 'DISJ')*
         'DISJ'      ::= 'KONJ' ('&&' 'KONJ')*
@@ -126,11 +126,12 @@ where
                       | 'VALUE'
                       | 'FUNC'
         'DEF'       ::= 'LOG' ':=' 'LAMBDA' ';'
-        'LOG'       ::= $(a..z)(0..9 | A..Z | a..z)*  
-        'FUNC'      ::= (a..z)(0..9 | A..Z | a..z)*['(' 'LAMBDA' [',' 'LAMBDA']* ')']
+        'LOG'       ::= $IDENT 
+        'FUNC'      ::= IDENT['(' 'LAMBDA' [',' 'LAMBDA']* ')']
+        IDENT       ::= (a..z)(0..9 | A..Z | a..z)*
     -}
-    parseFunctional :: Parser Lambda 
-    parseFunctional = token "begin" *> lambda <* token "end"
+    parseFunctional :: Parser (String, [String], Lambda) 
+    parseFunctional = (,,) <$> (token "lambda" *> ident) <*> (between (token "(") (token ")") (sepBy ident (token ","))) <*> (token "is" *> lambda <* token "end")
         where
             extract :: Expression Lambda -> Lambda 
             extract (Const e) = case e of 

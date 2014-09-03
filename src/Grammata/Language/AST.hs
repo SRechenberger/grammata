@@ -57,11 +57,11 @@ where
 
          @SPRG@ ::= -}
     data Subprogram = 
-        -- | 'proc' @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' ['with' (@IDENT@ ':=' @EXPR@;)+] 'does' (@STMT@ ';')* 'end'
+        -- | ['proc' | 'func'] @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' ['with' (@IDENT@ ':=' @EXPR@;)+] 'does' (@STMT@ ';')* 'end'
           Procedure Returns String [String] [(String, Expression Value)] [Statement]
-        -- | 'lambda' @IDENT@ '=' '\' @IDENT@* '.' @LAMBDA@
+        -- | 'lambda' @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' 'is' @LAMBDA@ 'end'
         | Lambda String [String] Lambda
-        -- | 'ask' [@IDENT@+ '?-'] @CLAUSE@ ['for' @IDENT@] 
+        -- | 'ask' [@IDENT@+ '?-'] @CLAUSE@ ['for' @IDENT@] 'end'
         | Query [String] (Maybe String) Clause
         -- | 'base' @IDENT@ 'says' @RULE@+ 'end'
         | Base String [Rule]
