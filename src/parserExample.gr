@@ -1,0 +1,42 @@
+program ParserExample 
+    with
+        var x := f(false,true);
+        var y := g(f(x,x));
+        var list := cons(a, cons(b, cons(c, nil)));
+    begin
+        base brother says
+            brother(hans, peter).
+            brother(fritz, peter).
+            brother(peter, juergen).
+
+            brother(X,Y) :- brother(X,Z), brother(Z,Y).
+            brother(X,Y) :- brotehr(Y,X).
+        end
+
+        query whosYourBrother asks brother for X ?- brother(hans,X) end 
+
+        lambda lambda(a,b,c) is 
+            \$bar.let 
+                $a := if a 
+                    then true
+                    else false 
+                    end;
+                in b c $a 
+            end
+        end
+
+        proc foobar() with 
+            var s := 1;
+            var x := 0;
+        does
+            for s to 10 in 1 do
+                x := s + 10;
+                if x >= 100 then
+                    exit;
+                else
+                    s := s + 1;
+                end
+            end
+            exit;
+        end
+    end

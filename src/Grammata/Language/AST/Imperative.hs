@@ -40,9 +40,9 @@ where
     import Control.Applicative (pure, (<*>), (<$>), (<*), (*>))
 
     -- | @STMT@ ::= 
-    data Statement = 
+    data Statement  
         -- | @IDENT@ ':=' @EXPR@
-          String := Expression Value
+        = String := Expression Value
         -- | 'for' @IDENT@ 'from' @EXPR@ 'to' @EXPR@ 'in' @EXPR@ 'do' @STMT@* 'end'
         | For String (Maybe (Expression Value)) (Expression Value) (Maybe (Expression Value)) [Statement]
         -- | 'do' @STMT@* 'while' @EXPR@ 'end'
@@ -81,27 +81,27 @@ where
             decl = (,) <$> (token "var" *> ident) <*> (Just <$> (token ":=" *> parseExpression <* token ";") <|> (token ";" *> pure Nothing))
 
             statement = lookAhead ((choice . map token $ ["for", "if", "while", "do", "call", "return", "exit"]) <|> ((:[]) <$> anyChar)) >>= \la -> case la of
-                "for" -> For 
+                "for"    -> For 
                     <$> (token "for" *> ident) 
                     <*> ((token "from" *> (Just <$> parseExpression)) <|> pure Nothing) 
                     <*> (token "to" *> parseExpression) 
                     <*> ((token "in" *> (Just <$> parseExpression)) <|> pure Nothing) 
                     <*> (token "do" *> manyTill statement (token "end"))
-                "if"  -> If 
+                "if"     -> If 
                     <$> (token "if" *> parseExpression)
                     <*> (token "then" *> manyTill statement (lookAhead (token "else" <|> token "end")))
                     <*> ((token "else" *> manyTill statement (lookAhead (token "end"))) <|> pure [])
-                    <* token "end"
-                "while" -> While 
+                    <*  token "end"
+                "while"  -> While 
                     <$> (token "while" *> parseExpression)
                     <*> (token "do" *> manyTill statement (token "end"))
-                "do" -> DoWhile 
+                "do"     -> DoWhile 
                     <$> (token "do" *> manyTill statement (lookAhead $ token "while"))
                     <*> (token "while" *> parseExpression) 
                     <*  token "end"
-                "call" -> Call <$> (token "call" *> ident) <*> (between (token "(") (token ")") (sepBy parseExpression (token ","))) <* token ";"
+                "call"   -> Call <$> (token "call" *> ident) <*> (between (token "(") (token ")") (sepBy parseExpression (token ","))) <* token ";"
                 "return" -> Return <$> (token "return" *> parseExpression <* token ";")
-                "exit" -> token "exit" *> pure Exit <* token ";"
-                [c] -> if isLower c
+                "exit"   -> token "exit" *> pure Exit <* token ";"
+                [c]      -> if isLower c
                     then (:=) <$> ident <*> (token ":=" *> parseExpression <* token ";")
                     else fail $ "Unexpected " ++ show c ++ "."

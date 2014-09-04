@@ -45,9 +45,9 @@ where
 
     -- | Lambda expressions.
     -- | <LAMBDA> ::=
-    data Lambda = 
+    data Lambda  
         -- | <IDENT>
-          Symbol String
+        = Symbol String
         -- | <VALUE>
         | Value Value
         -- | <EXPRESSION>

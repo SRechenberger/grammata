@@ -35,16 +35,21 @@ module Grammata.Language.AST
 )
 where
 
-    import Grammata.Language.AST.Expression (Expression (..))
-    import Grammata.Language.AST.Functional (Lambda (..))
-    import Grammata.Language.AST.Imperative (Statement (..))
-    import Grammata.Language.AST.Logical (Rule (..), Clause (..))
+    import Grammata.Language.AST.Expression (Expression (..), parseExpression)
+    import Grammata.Language.AST.Functional (Lambda (..), parseFunctional)
+    import Grammata.Language.AST.Imperative (Statement (..), parseImperative)
+    import Grammata.Language.AST.Logical (Rule (..), Clause (..), parseBase, parseQuery)
     import Grammata.Language.AST.Value (Value (..))
 
+    import Text.Parsec.String (Parser)
+    import Text.Parsec (parse, lookAhead, spaces, choice, manyTill, alphaNum, try, string, lower, upper, many)
+
+    import Control.Applicative (pure, (<$>), (<*>), (<*), (*>), (<|>))
+
     -- | Simple return type to distinguish procedures and functions.
-    data Returns = 
+    data Returns  
         -- | Function returns nothing. 
-          Void 
+        = Void 
         -- | Function returns something.
         | Val
         deriving (Show, Eq)
@@ -56,18 +61,47 @@ where
          @IDENT@ ::= @LOWER@ [@LOWER@ | @UPPER@ | '_' | @DIGIT@]*
 
          @SPRG@ ::= -}
-    data Subprogram = 
+    data Subprogram  
         -- | ['proc' | 'func'] @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' ['with' (@IDENT@ ':=' @EXPR@;)+] 'does' (@STMT@ ';')* 'end'
-          Procedure Returns String [String] [(String, Expression Value)] [Statement]
+        = Procedure Returns [String] [(String, Maybe (Expression Value))] [Statement]
         -- | 'lambda' @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' 'is' @LAMBDA@ 'end'
-        | Lambda String [String] Lambda
-        -- | 'ask' [@IDENT@+ '?-'] @CLAUSE@ ['for' @IDENT@] 'end'
+        | Lambda [String] Lambda
+        -- | 'ask' [@IDENT@+] ['for' @IDENT@] '?-' @CLAUSE@ 'end'
         | Query [String] (Maybe String) Clause
         -- | 'base' @IDENT@ 'says' @RULE@+ 'end'
-        | Base String [Rule]
+        | Base [Rule]
         deriving(Show, Eq)
 
     {- | A Grammata program.
          @PRG@ ::= 'program' [@IDENT@ '=' @EXPR@]* [@SPRG@ ';']* 'end' -}
-    data Program = Program {globals :: [(String, Value)] {- ^ Global identifiers. -}, subs :: [(String, Subprogram)] {- ^ Subprograms. -}}
+    data Program = Program {name :: String, globals :: [(String, Maybe (Expression Value))] {- ^ Global identifiers. -}, subs :: [(String, Subprogram)] {- ^ Subprograms. -}}
         deriving (Show, Eq)
+
+
+    program :: Parser Program 
+    program = Program 
+        <$> (token "program" *> ((:) <$> upper <*> manyTill alphaNum (lookAhead $ token "with" <|> token "begin"))) 
+        <*> (token "with" *> manyTill decl (lookAhead . token $ "begin"))
+        <*> (token "begin" *> manyTill subprg (lookAhead . token $ "end"))
+        <*  token "end"
+        where
+            ident :: Parser String
+            ident = (:) <$> lower <*> many alphaNum
+
+            token :: String -> Parser String
+            token s = try (spaces *> string s <* spaces)
+
+            decl :: Parser (String, Maybe (Expression Value))
+            decl = (,) <$> (token "var" *> ident) <*> (try (token ":=" *> (Just <$> parseExpression) <* token ";") <|> (token ";" *> pure Nothing))
+
+            subprg :: Parser (String, Subprogram) 
+            subprg = spaces >> (lookAhead . choice . map token) ["proc", "func", "lambda", "query", "base"] >>= \la -> case la of
+                "proc"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if not ret 
+                    then pure (name, Procedure Void params decls stmts)
+                    else fail $ name ++ " is a function." 
+                "func"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if ret 
+                    then pure (name, Procedure Val params decls stmts)
+                    else fail $ name ++ " is a procedure."
+                "lambda" -> parseFunctional >>= \(name, params, func) -> pure (name, Lambda params func)
+                "query"  -> parseQuery >>= \(name, bases, sought, clause) -> pure (name, Query bases sought clause) 
+                "base"   -> parseBase >>= \(name, rules) -> pure (name, Base rules)

@@ -25,7 +25,6 @@ along with grammata. If not, see <http://www.gnu.org/licenses/>.
 
 module Grammata.Language
 (
-    module Grammata.Language.Parser
     module Grammata.Language.AST
 )
 where
