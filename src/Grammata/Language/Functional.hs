@@ -1,29 +1,61 @@
-{-|
-Module : Grammata.Language.AST.Functional
-Description : Grammata Functional Abstract Syntax Tree Module
-Maintainer : sascha.rechenberger@uni-ulm.de
-Stability : stable
-Portability : portable
-Copyright : (c) Sascha Rechenberger, 2014
-License : GPL-3
+---------------------------------------------------------------------------
+-- This file is part of grammata.
+-- 
+-- grammata is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+-- 
+-- grammata is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-- GNU General Public License for more details.
+-- 
+-- You should have received a copy of the GNU General Public License
+-- along with grammata. If not, see <http://www.gnu.org/licenses/>.
+---------------------------------------------------------------------------
 
-This file is part of grammata.
+---------------------------------------------------------------------------
+-- | Module : Grammata.Language.Functional
+-- Description : Grammata functional abstract syntax tree and parser.
+-- Maintainer : sascha.rechenberger@uni-ulm.de
+-- Stability : stable
+-- Portability : portable
+-- Copyright : (c) Sascha Rechenberger, 2014
+-- License : GPL-3
+-- 
+-- [Functional subprogram grammar]
+--
+-- > FUNCTIONAL ::= lambda IDENT ( IDENT* ) is LAMBDA end
+-- >
+-- > LAMBDA     ::= ARITH ARITH*
+-- >
+-- > ARITH      ::= DISJ {|| DISJ}*
+-- >
+-- > DISJ       ::= KONJ {&& KONJ}*
+-- >
+-- > KONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
+-- >
+-- > COMP       ::= SUM {{+ | -} SUM}*
+-- >
+-- > SUM        ::= SIMPLE {{ * | / } SIMPLE}*
+-- >
+-- > SIMPLE     ::= \\ LOG+ . LAMBDA
+-- >              | if LAMBDA then LAMBDA else LAMBDA end
+-- >              | let DEF* in LAMBDA end
+-- >              | ( LAMBDA )
+-- >              | LOG
+-- >              | VALUE
+-- >              | IDENT[( LAMBDA [, LAMBDA]* )]
+-- >
+-- > DEF        ::= LOG := LAMBDA ;
+-- >
+-- > LOG        ::= $IDENT 
+-- >
+-- > IDENT      ::= {a..z}{ 0..9 | A..Z | a..z }*
+---------------------------------------------------------------------------
 
-grammata is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-grammata is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with grammata. If not, see <http://www.gnu.org/licenses/>.
--}
-
-module Grammata.Language.AST.Functional
+module Grammata.Language.Functional
 (
     Lambda (..), parseFunctional
 )
@@ -31,8 +63,8 @@ where
 
     import Prelude hiding (log)
 
-    import Grammata.Language.AST.Expression (Expression (..))
-    import Grammata.Language.AST.Value (Value (..), value)
+    import Grammata.Language.Expression (Expression (..))
+    import Grammata.Language.Value (Value (..), value)
 
     import Control.Applicative (Applicative (pure, (<*>)), (*>), (<*), (<|>), (<$>))
 
@@ -44,21 +76,20 @@ where
     import Data.Char (isAlphaNum, isDigit, isLower)
 
     -- | Lambda expressions.
-    -- | <LAMBDA> ::=
     data Lambda  
-        -- | <IDENT>
+        -- | @LOG@
         = Symbol String
-        -- | <VALUE>
+        -- | @VALUE@
         | Value Value
-        -- | <EXPRESSION>
+        -- | @ARITH@
         | Arith (Expression Lambda)
-        -- | 'if' <LAMBDA> 'then' <LAMBDA> 'else' <LAMBDA> 'end'
+        -- | @if LAMBDA then LAMBDA else LAMBDA end@
         | Cond Lambda Lambda Lambda
-        -- | '\' <IDENT>* '.' <LAMBDA>
-        | Abstr [String] Lambda 
-        -- | <LAMBDA> <LAMBDA>*
+        -- | @\\ LOG+ . LAMBDA@
+        | Abstr [String] Lambda
+        -- | @ARITH ARITH*@
         | Appl Lambda [Lambda]
-        -- | 'let' (<IDENT> '=' <LAMBDA>)* 'in' <LAMBDA> 'end'
+        -- | @let DEF* in LAMBDA end@
         | Let [(String, Lambda)] Lambda
         deriving (Eq)
 
@@ -100,7 +131,7 @@ where
                     pure (x:xs)
 
     instance Show Lambda where
-        show (Symbol s) = "$" ++ s 
+        show (Symbol s) = '$':s 
         show (Value v)  = "" ++ show v ++ ""
         show (Arith e)  = "" ++ show e ++ ""
         show (Cond c e1 e2) = "(if " ++ show c ++ " then " ++ show e1 ++ " else " ++ show e2 ++ " end)"
@@ -109,29 +140,9 @@ where
         show (Let defs e) = "(let " ++ (unwords . map (\(s,e) -> ('$':s) ++ " := " ++ show e ++ ";") $ defs) ++ " in " ++ show e ++ " end)"
 
 
-    {- | Parses a functional subprogram by the grammar:
-
-        'FUNCTION'  ::= 'lambda' IDENT '(' IDENT* ')' 'is' 'LAMBDA' 'end'
-        'LAMBDA'    ::= 'ARITH' 'ARITH'*
-        'ARITH'     ::= 'DISJ' ('||' 'DISJ')*
-        'DISJ'      ::= 'KONJ' ('&&' 'KONJ')*
-        'KONJ'      ::= 'COMP' (('==' | '!=' | '<=' | '>=' | '<' | '>') 'COMP')*
-        'COMP'      ::= 'SUM' (('+' | '-') 'SUM')*
-        'SUM'       ::= 'SIMPLE' (('*' | '/') 'SIMPLE')*
-        'SIMPLE'    ::= '\' 'LOG'+ '.' 'LAMBDA'
-                      | 'if' 'LAMBDA' 'then' 'LAMBDA' 'else' 'LAMBDA' 'end'
-                      | 'let' 'DEF'* 'in' 'LAMBDA' 'end'
-                      | '(' 'LAMBDA' ')'
-                      | 'LOG'
-                      | 'VALUE'
-                      | 'FUNC'
-        'DEF'       ::= 'LOG' ':=' 'LAMBDA' ';'
-        'LOG'       ::= $IDENT 
-        'FUNC'      ::= IDENT['(' 'LAMBDA' [',' 'LAMBDA']* ')']
-        IDENT       ::= (a..z)(0..9 | A..Z | a..z)*
-    -}
+    -- | Parses @FUNCTIONAL@  
     parseFunctional :: Parser (String, [String], Lambda) 
-    parseFunctional = (,,) <$> (token "lambda" *> ident) <*> (between (token "(") (token ")") (sepBy ident (token ","))) <*> (token "is" *> lambda <* token "end")
+    parseFunctional = (,,) <$> (token "lambda" *> ident) <*> between (token "(") (token ")") (sepBy ident (token ",")) <*> (token "is" *> lambda <* token "end")
         where
             extract :: Expression Lambda -> Lambda 
             extract (Const e) = case e of 
@@ -188,11 +199,9 @@ where
                 "$"    -> Symbol <$> (spaces *> char '$' *> ident)
                 "true" -> token "true" >> pure (Value . Boolean $ True)
                 "false"-> token "false" >> pure (Value . Boolean $ False)
-                [c]    -> if isDigit c 
-                    then Value <$> value 
-                    else if isLower c
-                        then Arith <$> func 
-                        else fail $ "Unexpected " ++ show c
+                [c] | isDigit c -> Value <$> value 
+                    | isLower c -> Value <$> value 
+                    | otherwise -> fail $ "Unexpected " ++ show c ++ "." 
 
             func :: Parser (Expression Lambda)
             func = Func <$> ident <*> ((token "(" *> sepBy (Const <$> lambda) (token ",") <* token ")" ) <|> pure [])
@@ -200,8 +209,8 @@ where
 
 -- QUICKCHECK STUFF
 
-    parses_correctly :: Lambda -> Bool
-    parses_correctly x = case test of 
+    parsesCorrectly :: Lambda -> Bool
+    parsesCorrectly x = case test of 
         Left msg -> False 
         Right b  -> b
         where 
@@ -212,4 +221,4 @@ where
                 
 
 --    check :: IO ()
-    check = quickCheckWith stdArgs{maxSize = 2} parses_correctly
+    check = quickCheckWith stdArgs{maxSize = 2} parsesCorrectly

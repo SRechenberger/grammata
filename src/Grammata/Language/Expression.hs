@@ -1,29 +1,48 @@
-{-|
-Module : Grammata.Language.AST.Expression
-Description : Grammata abstract syntax tree for arithmetical parseExpressions.
-Maintainer : sascha.rechenberger@uni-ulm.de
-Stability : stable
-Portability : portable
-Copyright : (c) Sascha Rechenberger, 2014
-License : GPL-3
+---------------------------------------------------------------------------
+-- This file is part of grammata.
+-- 
+-- grammata is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+-- 
+-- grammata is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-- GNU General Public License for more details.
+-- 
+-- You should have received a copy of the GNU General Public License
+-- along with grammata. If not, see <http://www.gnu.org/licenses/>.
+---------------------------------------------------------------------------
 
-This file is part of grammata.
+---------------------------------------------------------------------------
+-- | Module : Grammata.Language.Expression
+-- Description : Grammata abstract syntax tree and parser for arithmetical expressions.
+-- Maintainer : sascha.rechenberger@uni-ulm.de
+-- Stability : stable
+-- Portability : portable
+-- Copyright : (c) Sascha Rechenberger, 2014
+-- License : GPL-3
+--
+-- [Arithmetical expression grammar, parametrized over @VALUE@]
+-- 
+-- > EXPRESSION ::= DISJ { || DISJ}*
+-- >
+-- > DISJ ::= CONJ { && CONJ}*
+-- >
+-- > CONJ ::= COMP {{ == | != | <= | >= | < | > } COMP}*
+-- >
+-- > COMP ::= SUM {{ + | - } SUM}*
+-- > 
+-- > SUM ::= FAC {{ * | / } FAC}*
+-- > 
+-- > FAC ::= ( EXPRESSION )
+-- >       | { - | ! } EXPRESSION
+-- >       | IDENT{(EXPRESSION { , EXPRESSION}*)}?
+-- >       | VALUE
+---------------------------------------------------------------------------
 
-grammata is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-grammata is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with grammata. If not, see <http://www.gnu.org/licenses/>.
--}
-
-module Grammata.Language.AST.Expression
+module Grammata.Language.Expression
 (
     -- * Expression AST 
     Expression (..),
@@ -48,16 +67,11 @@ where
     -- | Operators reperesented as strings.
     type Op = String
 
-    {- | Arithmetical parseExpressions, parametrized over the AST in which they are use. May also be interpreted as structured data.
-         @EXPR@ ::= -}
+    {- | Arithmetical parseExpressions, parametrized over the AST in which they are use. May also be interpreted as structured data. -}
     data Expression ast = 
-        -- | @AST@ 
           Const ast         
-        -- | @EXPR@ @OP@ @EXPR@
         | BinOp (Expression ast) Op (Expression ast) 
-        -- | @OP@ @EXPR@
         | UnOp Op (Expression ast)                   
-        -- | @IDENT@ '(' [@EXPR@ [@EXPR@ ',']*] ')'
         | Func Op [Expression ast]                  
         deriving(Eq)    
 

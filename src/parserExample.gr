@@ -13,7 +13,7 @@ program ParserExample
             brother(X,Y) :- brotehr(Y,X).
         end
 
-        query whosYourBrother asks brother for X ?- brother(hans,X) end 
+        query whosYourBrother (a, b, c, d) asks brother for X ?- brother(hans,X) end 
 
         lambda lambda(a,b,c) is 
             \$bar.let 
