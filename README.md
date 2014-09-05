@@ -14,20 +14,23 @@ Syntax
 ```
 PROGRAM ::= program {A..Z}{a..z|A..Z|0..9} { with DECL* }? begin SUBPRG+ end
 DECL    ::= var IDENT { := EXPRESSION }? ;
-IDENT      ::= {a..z}{ 0..9 | A..Z | a..z }*
+IDENT   ::= {a..z}{ 0..9 | A..Z | a..z }*
 SUBPRG  ::= FUNCTIONAL 
           | IMPERATIVE 
           | QUERY 
           | BASE
+```
+### General arithmetical expressions
+```
 EXPRESSION ::= DISJ { || DISJ}*
-DISJ ::= CONJ { && CONJ}*
-CONJ ::= COMP {{ == | != | <= | >= | < | > } COMP}*
-COMP ::= SUM {{ + | - } SUM}*
-SUM ::= FAC {{ * | / } FAC}*
-FAC ::= ( EXPRESSION )
-      | { - | ! } EXPRESSION
-      | IDENT{(EXPRESSION { , EXPRESSION}*)}?
-      | PARAM_VALUE
+DISJ       ::= CONJ { && CONJ}*
+CONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
+COMP       ::= SUM {{ + | - } SUM}*
+SUM        ::= FAC {{ * | / } FAC}*
+FAC        ::= ( EXPRESSION )
+             | { - | ! } EXPRESSION
+             | IDENT{(EXPRESSION { , EXPRESSION}*)}?
+             | PARAM_VALUE
 ```
 ### Functional
 ```
@@ -63,7 +66,7 @@ STMT       ::= for IDENT { from EXPRESSION }? to EXPRESSION { in EXPRESSION }? d
 ```
 ### Logical
 ```
-QUERY ::= query ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
+QUERY  ::= query ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
 CLAUSE ::= DISJ { ; DISJ}*
 DISJ   ::= CONJ { , CONJ}*
 CONJ   ::= - CLAUSE 
