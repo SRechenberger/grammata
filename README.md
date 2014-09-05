@@ -1,56 +1,82 @@
 grammata 
 ========
 
-**grammata** is a simple script language interpreted and run as a monadic structure.
-In future it will support polyparadigmatic features such as functional expressions and logical knowledge bases and queries to use them.
+**grammata** is a simple script language interpreted and run on a monadic virtual machine.
+It supports polyparadigmatic features such as 
+  * imperative procedures and functions 
+  * functional expressions 
+  * logical knowledge bases and queries to use them
 
 Syntax
 ------
 
-Every *program* has the stucture `program { <DECLARAION>* <STATEMENT>* }`,
-whereas 
-* **`DECLARATION`** is 
-  * an uninitialized variable `var <ID>;`.
-  * a number initialized variable `var <ID> := <NUMBER>;`.
-  * a function initialized variable `var <ID> := func ( <PARAM>* ) { <DECLARATION>* <STATEMENT>* };`.
-
-* **`STATEMENT`** is
-  * an assignment `<ID> := <NUMBER>;`
-  * a for loop `for( <COUNTER> ; <END> ; <STEP> ) { <STATEMENT>* }`, whereas
-    * **`COUNTER`** is the `ID` of the counter variable.
-    * the value of the `EXPRESSION` **`END`** must be less (if `STEP` < 0) or greater (if `STEP` >= 0) than `COUNTER` to continue the loop.
-    * the value of the `EXPRESSION` **`STEP`** is added to the counter variable after every iteration.
-  * a while loop `while ( <COND> ) { <STATEMENT>* };` runs till the `EXPRESSION` `COND` is less then 0.
-  * a do while loop `do { <STATEMENT>* } while ( <COND> );` runs till the `EXPRESSION` `COND` is less then 0. The body will be executed at least once.
-  * a one armed if `if ( <COND> ) then { <STATEMENT>* };`. The then block will be executed if the `EXPRESSION` `COND` is greater or equal to 0.
-  * a two armed if `if ( <COND> ) then { <STATEMENT>* } else { <STATEMENT>* };`. The then block will be executed if the `EXPRESSION` `COND` is greater or equal to 0, the else block otherwise.
-  * a return `return <TORETURN>`, which will either print the result of the program or return a value to the calling function; however, the value of the `EXPRESSION` `TORETURN` is returned.
-* **`ID`** is an identifier beginning with a lower or uppercase letter and consisting of lower and uppercase letters and ciphers.
-* **`NUMBER`** is a number literal, consisting of two blocks of ciphers seprated by a `.` (`123.456`) or one block of ciphers (`123`).
-* a **`PARAM`** has the form `var <ID>` separated by `,`.
-* an **`EXPRESSION`** is 
-  * an identifiers `ID`.
-  * a constants `NUMBER`.
-  * a binary operations `<EXPRESSION> ° <EXPRESSION>` whereas `°` is 
-    * an addition `+`.
-    * a subtraction `-`.
-    * a multiplication `*`.
-    * a division `/`.
-    * an integer division `div`.
-    * a modulo operation `%` (returns integer values).
-    * a comparisons `<`, `>`, `<=`, `>=`, `==` and `!=` which yield `0` if as `false` and `1` as `true`.
-    * a logical and `&&`.
-    * a logical or `||`. 
-  * a unary 
-    * `- <EXPRESSION>`.
-    * `not <EXPRESSION>`.
-  * a function applications `<ID>( <ARG>* )` whereas `ARG` is an `EXPRESSION`.
-
-`<PARAM>*` and `<ARG>*` are separated by `,`.
-
-Comments are 
-* single line comments initialized with `##`.
-* multi line comments surrounded by `# ... #`.
+### Grammata Programs
+```
+PROGRAM ::= program {A..Z}{a..z|A..Z|0..9} { with DECL* }? begin SUBPRG+ end
+DECL    ::= var IDENT { := EXPRESSION }? ;
+IDENT      ::= {a..z}{ 0..9 | A..Z | a..z }*
+SUBPRG  ::= FUNCTIONAL 
+          | IMPERATIVE 
+          | QUERY 
+          | BASE
+EXPRESSION ::= DISJ { || DISJ}*
+DISJ ::= CONJ { && CONJ}*
+CONJ ::= COMP {{ == | != | <= | >= | < | > } COMP}*
+COMP ::= SUM {{ + | - } SUM}*
+SUM ::= FAC {{ * | / } FAC}*
+FAC ::= ( EXPRESSION )
+      | { - | ! } EXPRESSION
+      | IDENT{(EXPRESSION { , EXPRESSION}*)}?
+      | PARAM_VALUE
+```
+### Functional
+```
+FUNCTIONAL ::= lambda IDENT ( IDENT* ) is LAMBDA end
+LAMBDA     ::= ARITH ARITH*
+ARITH      ::= DISJ {|| DISJ}*
+DISJ       ::= KONJ {&& KONJ}*
+KONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
+COMP       ::= SUM {{+ | -} SUM}*
+SUM        ::= SIMPLE {{ * | / } SIMPLE}*
+SIMPLE     ::= \\ LOG+ . LAMBDA
+             | if LAMBDA then LAMBDA else LAMBDA end
+             | let DEF* in LAMBDA end
+             | ( LAMBDA )
+             | LOG
+             | VALUE
+             | IDENT[( LAMBDA [, LAMBDA]* )]
+DEF        ::= LOG := LAMBDA ;
+LOG        ::= $IDENT 
+```
+### Imperative
+```
+IMPERATIVE ::= { func | proc } IDENT ( {IDENT { , IDENT }*}? ) { with DECL+ }? does STMT* end
+STMT       ::= for IDENT { from EXPRESSION }? to EXPRESSION { in EXPRESSION }? do STMT* end
+             | while EXPRESSION to STMT* end
+             | do STMT* while EXPRESSION end
+             | if EXPRESSION then STMT* else STMT* end
+             | call IDENT({ EXPRESSION { , EXPRESSION }*}?) ;
+             | IDENT := EXPRESSION ;
+             | return EXPRESSION ; 
+             | exit ; 
+             | backtrack ;
+```
+### Logical
+```
+QUERY ::= query ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
+CLAUSE ::= DISJ { ; DISJ}*
+DISJ   ::= CONJ { , CONJ}*
+CONJ   ::= - CLAUSE 
+         | ( CLAUSE )
+         | GOAL 
+GOAL   ::= TERM :=: TERM 
+         | IDENT{( TERM { , TERM }*)}?
+TERM   ::= VALUE 
+         | {A..Z}{a..z|A..Z|0..9}*
+         | EXPRESSION 
+BASE   ::= base IDENT says RULE+ end
+RULE   ::= GOAL { :- CLAUSE}? .
+```
 
 Examples
 --------
