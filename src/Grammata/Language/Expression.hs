@@ -47,8 +47,11 @@ module Grammata.Language.Expression
     -- * Expression AST 
     Expression (..),
 
+    -- * Parser 
+    parseExpression, 
+
     -- * Auxiliaries
-    Op, foldExpression, ParseExprVal (..), parseExpression
+    Op, foldExpression, ParseExprVal (..)
 )
 where
 
@@ -67,7 +70,7 @@ where
     -- | Operators reperesented as strings.
     type Op = String
 
-    {- | Arithmetical parseExpressions, parametrized over the AST in which they are use. May also be interpreted as structured data. -}
+    -- | AST @EXPRESSION@; parametrized over the constant values.
     data Expression ast = 
           Const ast         
         | BinOp (Expression ast) Op (Expression ast) 
@@ -125,7 +128,7 @@ where
             [] -> e1
             es -> foldl (\e1 (op, e2) -> BinOp e1 op e2) e1 es
 
-    -- | Parses a arithmetical Expression.
+    -- | Parses @EXPRESSION@.
     parseExpression :: ParseExprVal value => Parser (Expression value)
     parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< expr 
         where 

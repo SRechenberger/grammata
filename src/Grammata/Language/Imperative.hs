@@ -46,7 +46,11 @@
 
 module Grammata.Language.Imperative
 (
-    Statement (..), parseImperative
+    -- * AST
+    Statement (..), 
+
+    -- * Parser
+    parseImperative
 )
 where
 
@@ -60,25 +64,16 @@ where
 
     import Control.Applicative (pure, (<*>), (<$>), (<*), (*>))
 
-    -- | Imperative statement.
+    -- | AST @STMT@.
     data Statement  
-        -- | @IDENT := EXPR@
         = String := Expression Value
-        -- | @for IDENT { from EXPRESSION }? to EXPRESSION { in EXPRESSION }? do STMT* end@
         | For String (Maybe (Expression Value)) (Expression Value) (Maybe (Expression Value)) [Statement]
-        -- | @do STMT* while EXPRESSION end@
         | DoWhile [Statement] (Expression Value) 
-        -- | @while EXPRESSION to STMT* end@
         | While (Expression Value) [Statement]
-        -- | @if EXPRESSION then STMT* else STMT* end@
         | If (Expression Value) [Statement] [Statement]
-        -- | @call IDENT({ EXPRESSION { , EXPRESSION }*}?) ;@
         | Call String [Expression Value]
-        -- | @return EXPR@
         | Return (Expression Value)
-        -- | @exit@
         | Exit
-        -- | @backtrack@
         | Backtrack
         deriving (Show, Eq)
 
@@ -86,7 +81,7 @@ where
     instance ParseExprVal Value where
         parseExprVal = value
 
-    -- | Parses an imperative subprogram.
+    -- | Parses @IMPERATIVE@.
     parseImperative :: Parser (Bool, String, [String], [(String, Maybe (Expression Value))], [Statement])
     parseImperative = (,,,,) 
         <$> ((token "func" >> pure True) <|> (token "proc" >> pure False)) 

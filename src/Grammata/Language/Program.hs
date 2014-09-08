@@ -39,15 +39,12 @@
 module Grammata.Language.Program
 (
     -- * Grammata 
-    Program (..), Value (..), Expression (..), Returns (..),
+    Program (..), Returns (..),
     -- * Subprograms
     Subprogram (..), 
-    Lambda (..),
-    Statement (..),
-    Rule (..), Clause (..),
 
     -- * Parser
-    parseGrammata
+    parseProgram
 )
 where
 
@@ -70,33 +67,22 @@ where
         | Val
         deriving (Show, Eq)
 
-    {- | Grammata Subprograms.
-
-         @LOWER@ ::= 'a' | 'b' | ... | 'z'
-
-         @IDENT@ ::= @LOWER@ [@LOWER@ | @UPPER@ | '_' | @DIGIT@]*
-
-         @SPRG@ ::= -}
+    -- | AST @SUBPRG@.
     data Subprogram  
-        -- | ['proc' | 'func'] @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' ['with' (@IDENT@ ':=' @EXPR@;)+] 'does' (@STMT@ ';')* 'end'
         = Procedure Returns [String] [(String, Maybe (Expression Value))] [Statement]
-        -- | 'lambda' @IDENT@ '(' [[@IDENT@ ','] @IDENT@] ')' 'is' @LAMBDA@ 'end'
         | Lambda [String] Lambda
-        -- | 'ask' [@IDENT@+] ['for' @IDENT@] '?-' @CLAUSE@ 'end'
         | Query [String] [String] (Maybe String) Clause
-        -- | 'base' @IDENT@ 'says' @RULE@+ 'end'
         | Base [Rule]
         deriving(Show, Eq)
 
-    {- | A Grammata program.
-         @PRG@ ::= 'program' [@IDENT@ '=' @EXPR@]* [@SPRG@ ';']* 'end' -}
+    -- | AST @PROGRAM@.
     data Program = Program {name :: String, globals :: [(String, Maybe (Expression Value))] {- ^ Global identifiers. -}, subs :: [(String, Subprogram)] {- ^ Subprograms. -}}
         deriving (Show, Eq)
 
 
-    -- | Parses a grammata Program.
-    program :: Parser Program 
-    program = Program 
+    -- | Parses @PROGRAM@.
+    parseProgram :: Parser Program 
+    parseProgram = Program 
         <$> (token "program" *> ((:) <$> upper <*> manyTill alphaNum (lookAhead $ token "with" <|> token "begin"))) 
         <*> (token "with" *> manyTill decl (lookAhead . token $ "begin"))
         <*> (token "begin" *> manyTill subprg (lookAhead . token $ "end"))
@@ -124,8 +110,4 @@ where
                 "base"   -> parseBase >>= \(name, rules) -> pure (name, Base rules)
 
 
-    -- | Parses a grammata program.
-    parseGrammata :: String -> Either String Program 
-    parseGrammata input = case parse program "" input of
-        Left msg  -> Left . show $ msg
-        Right ast -> Right ast 
+    

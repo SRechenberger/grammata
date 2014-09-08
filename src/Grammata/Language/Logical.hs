@@ -26,7 +26,7 @@
 --
 -- [Logical subprogram grammar]
 -- 
--- > QUERY ::= query ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
+-- > QUERY ::= query IDENT ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
 -- > 
 -- > IDENT ::= {a..z}{a..z|A..Z|0..9}*
 -- > 
@@ -52,7 +52,11 @@
 
 module Grammata.Language.Logical
 (
-    Term (..), Goal (..), Clause (..), Rule (..), Base, parseBase, parseQuery
+    -- * AST
+    Term (..), Goal (..), Clause (..), Rule (..), Base, 
+
+    -- * Parser
+    parseBase, parseQuery
 )
 where
 
@@ -64,41 +68,32 @@ where
 
     import Control.Applicative (pure, (<$>), (<*>), (<*), (*>), (<|>))
 
-    -- | @TERM@
+    -- | AST @TERM@
     data Term  
-        -- | @VALUE@
         = Val Value
-        -- | @IDENT@
         | Var String
-        -- | @EXPRESSION@
         | Expr (Expression Term)
         deriving (Show, Eq)
 
-    -- | @GOAL@
+    -- | AST @GOAL@
     data Goal  
-        -- | @IDENT{( TERM { , TERM }*)}?@
         = Predicate String [Term]
-        -- | @TERM :=: TERM@
         | Term :=: Term 
         deriving (Show, Eq)
 
-    -- | @CLAUSE@
+    -- | AST @CLAUSE@
     data Clause  
-        -- | @GOAL@
         = Pos Goal
-        -- | @- CLAUSE@
         | Neg Clause
-        -- | @CONJ { , CONJ}*@
         | Clause :&& Clause
-        -- | @DISJ { ; DISJ}*@
         | Clause :|| Clause
         deriving (Show, Eq)
 
-    -- | @GOAL { :- CLAUSE}? .@
+    -- | AST @RULE@
     data Rule = Goal :- (Maybe Clause)
         deriving (Show, Eq)
 
-    -- | @base IDENT says RULE+ end@
+    -- | AST @BASE@
     type Base = [Rule]
 
     instance ParseExprVal Term where

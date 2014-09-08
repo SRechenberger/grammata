@@ -2,8 +2,8 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                grammata
-version:             0.2.0.22
-synopsis:            Grammata-script interpreter
+version:             0.2.0.23
+synopsis:            Grammata-script parser, interpreter and VM.
 -- description:         
 homepage:            https://github.com/SRechenberger/grammata
 license:             GPL-3

@@ -57,7 +57,11 @@
 
 module Grammata.Language.Functional
 (
-    Lambda (..), parseFunctional
+    -- * AST
+    Lambda (..), 
+
+    -- * Parser
+    parseFunctional
 )
 where
 
@@ -75,21 +79,14 @@ where
     import Test.QuickCheck
     import Data.Char (isAlphaNum, isDigit, isLower)
 
-    -- | Lambda expressions.
+    -- | AST @SIMPLE@; except @Appl@, which is the AST for @LAMBDA@.
     data Lambda  
-        -- | @LOG@
         = Symbol String
-        -- | @VALUE@
         | Value Value
-        -- | @ARITH@
         | Arith (Expression Lambda)
-        -- | @if LAMBDA then LAMBDA else LAMBDA end@
         | Cond Lambda Lambda Lambda
-        -- | @\\ LOG+ . LAMBDA@
         | Abstr [String] Lambda
-        -- | @ARITH ARITH*@
-        | Appl Lambda [Lambda]
-        -- | @let DEF* in LAMBDA end@
+        | Appl Lambda [Lambda]  
         | Let [(String, Lambda)] Lambda
         deriving (Eq)
 
@@ -140,7 +137,7 @@ where
         show (Let defs e) = "(let " ++ (unwords . map (\(s,e) -> ('$':s) ++ " := " ++ show e ++ ";") $ defs) ++ " in " ++ show e ++ " end)"
 
 
-    -- | Parses @FUNCTIONAL@  
+    -- | Parses @FUNCTIONAL@.
     parseFunctional :: Parser (String, [String], Lambda) 
     parseFunctional = (,,) <$> (token "lambda" *> ident) <*> between (token "(") (token ")") (sepBy ident (token ",")) <*> (token "is" *> lambda <* token "end")
         where

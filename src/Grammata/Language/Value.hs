@@ -42,7 +42,10 @@
 
 module Grammata.Language.Value
 (
+    -- * AST
     Value (..),
+
+    -- * Parser
     value
 )
 where
@@ -54,14 +57,10 @@ where
 
     import Test.QuickCheck
 
-    -- | <DIGIT> ::= 0 | 1 | 2 | ... | 9
-    -- | <VALUE> ::= 
+    -- | AST @VALUE@. 
     data Value =
-        -- | <DIGIT>+ 
           Natural Integer
-        -- | <DIGIT>* '.' <DIGIT>+
         | Real Double
-        -- | 'true' | 'false'
         | Boolean Bool 
         deriving (Eq)
 
@@ -71,7 +70,7 @@ where
         show (Real d)    = show d 
         show (Boolean b) = if b then "true" else "false" 
 
-    -- | Parser for values.
+    -- | Parses @VALUE@.
     value :: Parser Value
     value = do 
         spaces
