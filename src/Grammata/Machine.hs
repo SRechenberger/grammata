@@ -45,40 +45,96 @@ where
 
     import Grammata.Machine.Core 
 
-    imperative :: [(Ident, CoreExpression Machine)] -> [Ident] -> [CoreStatement Machine] -> Subprogram Machine
+    imperative :: ()
+        => [(Ident, CoreExpression m)]
+        -> [Ident]
+        -> [CoreStatement m]
+        -> Subprogram m
     imperative locals params stmts = Imperative $ Method locals params stmts
 
-    iAssignment :: Ident -> CoreExpression Machine -> CoreStatement Machine
+    iAssignment :: ()
+        => Ident 
+        -> CoreExpression m 
+        -> CoreStatement m
     iAssignment = (:=)
 
-    iIf :: CoreExpression Machine -> [CoreStatement Machine] -> [CoreStatement Machine] -> CoreStatement Machine
+    iIf :: () 
+        => CoreExpression m 
+        -> [CoreStatement m]
+        -> [CoreStatement m] 
+        -> CoreStatement m
     iIf = IIf 
 
+    iWhile :: () 
+        => CoreExpression m 
+        -> [CoreStatement m] 
+        -> CoreStatement m
     iWhile = IWhile 
 
+    iReturn :: ()  
+        => CoreExpression m 
+        -> CoreStatement m
     iReturn = IReturn 
 
+    iCall :: ()
+        => Ident 
+        -> [CoreExpression m] 
+        -> CoreStatement m
     iCall = ICall 
 
-    iTrackBack = TrackBack
+    iTrackBack :: () 
+        => CoreStatement m
+    iTrackBack = ITrackBack
 
+    iVar :: ()
+        => Ident 
+        -> CoreExpression m 
     iVar = IVar 
 
+    iVal :: ()
+        => Basic 
+        -> CoreExpression m
     iVal = IVal 
 
+    iOp :: () 
+        => ([Basic] -> m Basic) 
+        -> [CoreExpression m] 
+        -> CoreExpression m
     iOp = IOp 
 
+    iFunc :: () 
+        => Ident 
+        -> [CoreExpression m] 
+        -> CoreExpression m
     iFunc = IFunc
 
-    functional :: CoreLambda Machine -> Subprogram Machine 
-    functional expr = Functional expr 
+    functional :: ()
+        => CoreLambda m 
+        -> [Ident] 
+        -> Subprogram m
+    functional expr idents = Functional (CLM expr idents) 
 
+    fVar :: ()
+        => Ident 
+        -> CoreLambda m
     fVar = FVar 
 
+    fConst :: ()
+        => Basic 
+        -> CoreLambda m
     fConst = FConst 
 
+    fIf :: () 
+        => CoreLambda m 
+        -> CoreLambda m 
+        -> CoreLambda m 
+        -> CoreLambda m
     fIf = FIf 
 
+    fOp :: ()
+        => ([Basic] -> m Basic) 
+        -> [CoreLambda m] 
+        -> CoreLambda m
     fOp = FOp 
 
     fCall = FCall 
@@ -89,7 +145,6 @@ where
 
     fAbs = FAbs 
 
-    query :: [Ident] -> Maybe Ident -> [Ident] -> [CoreClause] -> Subprogram Machine
     query params sought bases clause = Logical $ Query params sought bases clause 
 
     lOr = LOr 
@@ -106,7 +161,6 @@ where
 
     lFun ident args = LFun ident (length args) args
 
-    base :: [CoreRule] -> Subprogram Machine
     base = Base
 
     lRule = (:-)

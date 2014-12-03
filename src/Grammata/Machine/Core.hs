@@ -38,14 +38,12 @@ module Grammata.Machine.Core
     CoreStatement (..), CoreMethod (..), CoreExpression (..),
 
     -- ** Functional
-    CoreLambda (..),
+    CoreLambda (..), CoreLambdaMethod (..),
 
     -- ** Logical
     CoreRule (..), CoreClause (..), CoreGoal (..), CoreQuery (..), CoreTerm (..), lVar
 )
 where   
-
-    import Debug.Trace
 
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
     import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runCoreMethod, evalExpressionlist, CoreImperative (..), CoreMethod (..))
@@ -149,9 +147,9 @@ where
 
     -- | Running a program given as a list of identifier method pairs, where one must be declared as @main@, and a set of global variables.
     runProgram :: () 
-        => [(Ident, Subprogram Machine)] -- ^ List of subprograms.
-        -> [(Ident, CoreExpression Machine)]   -- ^ List of global variables.
-        -> IO ()         -- ^ Output string.
+        => [(Ident, Subprogram Machine)]        -- ^ List of subprograms.
+        -> [(Ident, CoreExpression Machine)]    -- ^ List of global variables.
+        -> IO ()                                -- ^ Program execution action.
     runProgram dict globals = do 
         result <- runGrammateion program (Dict dict) (Storage newIStorage newFStorage newLStorage) 
         case result of 
@@ -187,17 +185,17 @@ where
 --                  ])
 --       Fu       ]
 --      ]
-    fak' :: CoreLambda Machine
-    fak' = FLet [
-        ("fak", FAbs ["n"] 
-            (FIf 
-                (FOp (\(Natural n:_) -> return . Boolean $ n <= 1) [FVar "n"]) 
-                (FConst (Natural 1)) 
-                (FOp (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
-                    FApp (FVar "fak") [FOp (\(Natural n1:_) -> return . Natural $ n1 - 1) [FVar "n"]],
-                    FVar "n"
-                    ])))
-        ] (FApp (FVar "fak") [FConst . Natural $ 5])
+--    fak' :: CoreLambda Machine
+--    fak' = FLet [
+--        ("fak", FAbs ["n"] 
+--            (FIf 
+--                (FOp (\(Natural n:_) -> return . Boolean $ n <= 1) [FVar "n"]) 
+--                (FConst (Natural 1)) 
+--                (FOp (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
+--                    FApp (FVar "fak") [FOp (\(Natural n1:_) -> return . Natural $ n1 - 1) [FVar "n"]],
+--                    FVar "n"
+--                    ])))
+--        ] (FApp (FVar "fak") [FConst . Natural $ 5])
 --  omega :: CoreLambda Machine
 --  omega = FApp o [o]
 --      where 
@@ -228,18 +226,18 @@ where
 --  testBase3 = [
 --      LPred "p" 1 [lVar "Y"] :- [LOr [[LGoal $ (lVar "Y") :=: (LFun "x" 0 [])], [(LGoal (lVar "Y" :=: LFun "y" 0 []))]]]
 --      ]
-    testBase4 :: [CoreRule]
-    testBase4 = [
-        LPred "fak" 2 [Atom (Natural 0), Atom (Natural 1)] :- [],
-        LPred "fak" 2 [Atom (Natural 1), Atom (Natural 1)] :- [],
-        LPred "fak" 2 [LFun "mult" 2 [lVar "N"], LFun "mult" 2 [lVar "F"]] :- [LGoal $ LPred "fak" 2 [lVar "N", lVar "F"]]
-        ]
+--    testBase4 :: [CoreRule]
+--    testBase4 = [
+--        LPred "fak" 2 [Atom (Natural 0), Atom (Natural 1)] :- [],
+--        LPred "fak" 2 [Atom (Natural 1), Atom (Natural 1)] :- [],
+--        LPred "fak" 2 [LFun "mult" 2 [lVar "N"], LFun "mult" 2 [lVar "F"]] :- [LGoal $ LPred "fak" 2 [lVar "N", lVar "F"]]
+--        ]
 --    testQuery :: CoreQuery
 --    testQuery = Query [] (Just "X") ["b1"] [LGoal $ LPred "p" 1 [LFun "succ" 1 [LFun "succ" 1 [LFun "succ" 1 [lVar "X"]]]]]
 --  testQuery2 :: CoreQuery
 --  testQuery2 = Query [] Nothing ["b2"] [LOr [[LGoal $ LPred "p" 1 [LFun "x" 0 []]], [LGoal $ LPred "p" 1 [LFun "y" 0 []]]]]
-    testQuery3 :: CoreQuery
-    testQuery3 = Query [] (Just "F") ["b3"] [LGoal . LPred "fak" 2 $ [LFun "mult" 2 [Atom (Natural 0)], LFun "mult" 2 [lVar "F"]]]
+--    testQuery3 :: CoreQuery
+--    testQuery3 = Query [] (Just "F") ["b3"] [LGoal . LPred "fak" 2 $ [LFun "mult" 2 [Atom (Natural 0)], LFun "mult" 2 [lVar "F"]]]
 --  
 --  runtestQ1 = runGrammateion 
 --      (askQuery testQuery3 [])

@@ -47,8 +47,6 @@ module Grammata.Machine.Core.Logical
 )
 where 
 
-    import Debug.Trace
-
     import Data.Monoid (Monoid (..), (<>))
     import Data.List (intercalate)
 
