@@ -87,22 +87,19 @@ where
     update ptr val storage = let 
         h = heap storage 
         in if ptr `member` h 
-            then return storage {heap = adjust (const . Closure $ val) ptr h}
+            then return storage {heap = adjust (const . Basic $ val) ptr h}
             else fail $ "ERROR null pointer " ++ show ptr
 
     -- | Loads a value from the heap, and evaluates it with a given function, if it is a closure.
     load :: (Monad m)
-        => Pointer                   -- ^ A pointer to the value to be load.
-        -> (value -> m value)        -- ^ The evaluation function.
-        -> FStorage value            -- ^ The heap to load from.
-        -> m (value, FStorage value) -- ^ The load value.
-    load ptr eval storage = let h = heap storage in case lookup ptr h of
-        Nothing -> fail $ "ERROR null pointer " ++ show ptr
-        Just x  -> case x of
-            Empty     -> fail $ "ERROR empty cell at " ++ show ptr
-            Closure c -> do 
-                newVal <- eval c
-                return (newVal, storage {heap = adjust (const . Basic $ newVal) ptr h})
-            Basic b -> return (b, storage)
+        => Pointer 
+        -> FStorage value
+        -> m (value, Bool)
+    load ptr storage = let h = heap storage in case ptr `lookup` h of
+        Nothing -> fail $ "ERROR " ++ show ptr ++ " does not point on a heap cell."
+        Just b  -> case b of 
+            Empty -> fail $ "ERROR cell at " ++ show ptr ++ " is empty."
+            Basic lambda -> return (lambda, True)
+            Closure lambda -> return (lambda, False)
                 
 

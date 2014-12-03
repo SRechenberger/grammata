@@ -36,7 +36,10 @@ module Grammata.Machine.Grammateion
     get, put, 
 
     -- * MonadReader
-    ask
+    ask,
+
+    -- * MonadIO
+    liftIO
 )
 where   
 
@@ -47,44 +50,51 @@ where
 
     import Control.Monad.State.Class (MonadState (..))
     import Control.Monad.Reader.Class (MonadReader (..))
+    import Control.Monad.IO.Class (MonadIO (..))
 
     -- | Combination monad of Reader, State and Either; able to hold some constant environment and a mutable state and to terminate.
     newtype Grammateion dict state a = Grammateion {
-        runGrammateion :: (dict -> state -> Either String (a, state)) -- ^ Runs a grammateion monad.
+        runGrammateion :: (dict -> state -> IO (Either String (a, state))) -- ^ Runs a grammateion monad.
         }
 
     instance Functor (Grammateion d s) where
-        fmap f gr = Grammateion $ \d s -> case runGrammateion gr d s of
+        fmap f gr = Grammateion $ \d s -> runGrammateion gr d s >>= \comp -> return $ case comp of
             Left msg      -> Left msg 
             Right (a, s') -> Right (f a, s')
 
     instance Monad (Grammateion d s) where
-        return x = Grammateion $ \d s -> Right (x, s)
-        fail msg = Grammateion $ \_ _ -> Left msg
-        grF >>= g = Grammateion $ \d s -> case runGrammateion grF d s of
-            Left msg      -> Left msg
+        return x = Grammateion $ \d s -> return $ Right (x, s)
+        fail msg = Grammateion $ \_ _ -> return $ Left msg
+        grF >>= g = Grammateion $ \d s -> runGrammateion grF d s >>= \comp -> case comp of
+            Left msg      -> return $ Left msg
             Right (a, s') -> runGrammateion (g a) d s' 
 
     instance Applicative (Grammateion d s) where
         pure = return
-        grF <*> grA = Grammateion $ \d s -> case runGrammateion grF d s of
-            Left msg -> Left msg 
+        grF <*> grA = Grammateion $ \d s -> runGrammateion grF d s >>= \comp -> case comp of
+            Left msg -> return $ Left msg 
             Right (f, s') -> runGrammateion (fmap f grA) d s'
 
     instance Alternative (Grammateion d s) where
-        empty = Grammateion $ \_ _ -> Left "ERROR empty computation"
-        grA <|> grB = Grammateion $ \d s -> let 
-            a = runGrammateion grA d s 
-            b = runGrammateion grB d s 
-            in case (a, b) of
+        empty = Grammateion $ \_ _ -> return $ Left "ERROR empty computation"
+        grA <|> grB = Grammateion $ \d s -> do
+            a <- runGrammateion grA d s 
+            b <- runGrammateion grB d s 
+            return $ case (a, b) of
                 (Left m, Left _)   -> Left m
                 (Left _, Right p2) -> Right p2
                 (Right p1, _)      -> Right p1 
 
     instance MonadState s (Grammateion d s) where
-        get = Grammateion $ \_ s -> Right (s,s)
-        put s = Grammateion $ \d _ -> Right ((),s)
+        get = Grammateion $ \_ s -> return $ Right (s,s)
+        put s = Grammateion $ \d _ -> return $ Right ((),s)
 
     instance MonadReader d (Grammateion d s) where
-        ask = Grammateion $ \d s -> Right (d,s)
+        ask = Grammateion $ \d s -> return $ Right (d,s)
         local f gr = Grammateion $ \d s -> runGrammateion gr (f d) s 
+
+    instance MonadIO (Grammateion d s) where
+        -- liftIO :: IO a -> Grammateion d s a
+        liftIO ioAction = Grammateion $ \d s -> do 
+            a <- ioAction 
+            return $ Right (a, s)

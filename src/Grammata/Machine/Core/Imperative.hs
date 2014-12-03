@@ -35,96 +35,163 @@ module Grammata.Machine.Core.Imperative
     -- ** Imperative Statements
     CoreStatement (..),
     -- ** Arithmetical Expressions
-    Expression (..),
+    CoreExpression (..), evalExpressionlist,
     
     -- * Imperative Method
     CoreMethod (..),    
-    runProcedure,
-    runFunction
+    runCoreMethod
 )
 where 
 
-    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer, parallel)
-    import Grammata.Machine.Core.Types (Basic (..))
+    import Prelude hiding (toInteger)
+    
+    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
+    import Grammata.Machine.Core.Types (Basic (..), toBoolean, toInteger)
 
     import Control.Applicative ((<|>), pure, (<*>), (<$>))
     import Control.Monad (forM)
 
+
     -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
-    data CoreMethod m = Method [(Ident, Expression m)] [Ident] [CoreStatement m] 
+    data CoreMethod m = Method [(Ident, CoreExpression m)] [Ident] [CoreStatement m] 
 
 
     -- | Imperative core language AST.
     data CoreStatement m = 
         -- | <IDENT> := <EXPR>
-          Ident := Expression m
+          Ident := CoreExpression m
         -- | if <EXPR> then <STMT>* else <STMT>*
-        | IIf (Expression m) [CoreStatement m] [CoreStatement m]
+        | IIf (CoreExpression m) [CoreStatement m] [CoreStatement m]
         -- | while <EXPR> do <STMT>* 
-        | IWhile (Expression m) [CoreStatement m]
+        | IWhile (CoreExpression m) [CoreStatement m]
         -- | return <EXPR>
-        | IReturn (Expression m)
+        | IReturn (CoreExpression m)
         -- | call <IDENT> (<EXPR>*)
-        | ICall Ident [Expression m]
+        | ICall Ident [CoreExpression m]
         -- | trackback
-        | TrackBack
+        | ITrackBack
+
 
     -- | Arithmetical Expression AST.
-    data Expression m = 
+    data CoreExpression m = 
         -- | <IDENT>
           IVar Ident
         -- | <BASIC>
         | IVal Basic
         -- | <OP> <BASIC>*
-        | IOp ([Basic] -> m Basic) [Expression m]
+        | IOp ([Basic] -> m Basic) [CoreExpression m]
         -- | <IDENT> (<EXPR>*)
-        | IFunc Ident [Expression m]
+        | IFunc Ident [CoreExpression m]
+
 
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
-        -- | Calling and running a procedure.
-        callProcedure           :: Ident -> [Basic] -> m ()
         -- | Reading from the stack.
         readStack               :: Ident -> m Basic
         -- | Writing to the stack, either locally or or generally.
         writeStack, writeLocals :: Ident -> Basic -> m ()
-        -- | Backtracking.
-        trackBack               :: m a
-        trackBack = fail "BACKTRACK"
 
-    
 
+    -- | Runs a given core method given arguments and a return point.
+    runCoreMethod :: (CoreImperative m) 
+        => CoreMethod m     -- ^ Method to execute.
+        -> [Basic]          -- ^ Arguments of the method call.
+        -> (Basic -> m ())  -- ^ Returning point.
+        -> m ()             -- ^ Remaining program action.
+    runCoreMethod (Method locals params stmts) args retPt = let p_as = params `zip` args in do
+        enter p_as
+        let (names, exprs) = unzip locals 
+        evalExpressionlist locals exprs [] $ \vals -> let locals' = names `zip` vals in do 
+            leave
+            enter (locals' ++ p_as)
+            runImperative stmts $ \bsc -> do
+                leave
+                retPt bsc
+
+
+    -- | Evaluates a arithmetical expression and applies the function of its returning point to the evaluated value.
+    evalExpression :: (CoreImperative m)
+        => [(Ident, CoreExpression m)]  -- ^ Temporary auxiliary symbol table.
+        -> (Basic -> m ())              -- ^ Return point function.
+        -> CoreExpression m             -- ^ Expression to evaluate.
+        -> m ()                         -- ^ Evaluation action.
+    evalExpression tmp retPt expr = case expr of
+        IVar var        -> (readTemp tmp var >>= evalExpression tmp retPt) <|> (readStack var >>= retPt)
+        IVal val        -> retPt val 
+        IOp f args      -> evalExpressionlist tmp args [] $ (\bscs -> f bscs >>= retPt)
+        IFunc name args -> evalExpressionlist tmp args [] $ (callProcedure name retPt)
+
+        where 
+            readTemp tmp var = case var `lookup` tmp of
+                Nothing -> fail $ "ERROR cannot find " ++ var ++ "."
+                Just x  -> return x
+
+    -- | Evaluates a list of expressions and applies the function of its returning point to the evalated values.
+    evalExpressionlist :: (CoreImperative m)
+        => [(Ident, CoreExpression m)]  -- ^ Temporary auxiliary symbol table.
+        -> [CoreExpression m]           -- ^ Expressions to evaluate.
+        -> [Basic]                      -- ^ Accumulator for evaluated expressions.
+        -> ([Basic] -> m ())            -- ^ Return point function.
+        -> m ()                         -- ^ Evaluation action.
+    evalExpressionlist tmp exprs evaluated retPt = case exprs of 
+        []   -> retPt . reverse $ evaluated
+        e:es -> evalExpression tmp (\bsc -> evalExpressionlist tmp es (bsc:evaluated) retPt) e 
+
+
+    -- | Executes the given sequence of 'CoreStatement's.
+    runImperative :: (CoreImperative m) 
+        => [CoreStatement m] -- ^ Sequence of 'CoreStatement's.
+        -> (Basic -> m ())   -- ^ Return point.
+        -> m ()              -- ^ Execution action.
+    runImperative []        _     = fail "ERROR unexpected end of program."
+    runImperative (s:stmts) retPt = case s of 
+        ident := expr -> 
+            evalExpression [] (\bsc -> writeLocals ident bsc >> runImperative stmts retPt) expr 
+        IIf cond thenBlock elseBlock -> 
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) retPt) cond
+        IWhile cond block ->
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block else []) ++ stmts) retPt) cond
+        IReturn expr -> 
+            evalExpression [] (\bsc -> retPt bsc) expr
+        ICall name exprs -> 
+            evalExpressionlist [] exprs [] (callProcedure name retPt)
+        ITrackBack -> 
+            trackback
+
+{-
     -- | Evaluates an arithmetical expression.
     evalExpression :: (CoreImperative m)
-        => [(Ident, Expression m)]  -- ^ Temporary auxiliary symbol table.
-        -> Expression m             -- ^ Expression to evaluate.
-        -> m [Basic]                -- ^ List of possible results.
-    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= return . return)
+        => [(Ident, CoreExpression m)]  -- ^ Temporary auxiliary symbol table.
+        -> CoreExpression m             -- ^ Expression to evaluate.
+        -> m ()                         -- ^ List of possible results.
+    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= setReturnValue)
         where 
             readTemp tmp = case id `lookup` tmp of
                 Nothing -> fail $ "Cannot find " ++ id ++ " in TMP."
                 Just e  -> return e
-    evalExpression _ (IVal bsc) = return [bsc] 
-    evalExpression tmp (IOp f args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (\args -> f args >>= return . (:[])) 
-    evalExpression tmp (IFunc name args) = mapM (evalExpression tmp) args >>= return . parallel >>= choice . map (callFunction name)
+    evalExpression _ (IVal bsc) = setReturnValue bsc
+    evalExpression tmp (IOp f args) = f <$> mapM (\arg -> evalExpression tmp arg >> getReturnValue) args >>= setReturnValue
+    evalExpression tmp (IFunc name args) = mapM (\arg -> evalExpression tmp arg >> getReturnValue) args >>= callFunction name 
 
     -- | Evaluates a expression and extracts a boolean.
     evalToBoolean :: CoreImperative m 
-        => Expression m -- ^ Expression to evaluate.
-        -> m Bool       -- ^ Result.
+        => CoreExpression m -- ^ Expression to evaluate.
+        -> m Bool           -- ^ Result.
     evalToBoolean cond = do
-        conds <- evalExpression [] cond 
-        choice . flip map conds $ \cond -> case cond of
+        evalExpression [] cond 
+        cond <- getReturnValue
+        case cond of
             Boolean b -> return b
             others    -> fail $ "ERROR " ++ show others ++ " is no boolean."
 
     -- | Evaluates a expression and extracts an integer.
     evalToInteger :: CoreImperative m 
-        => Expression m -- ^ Expression to evaluate.
+        => CoreExpression m -- ^ Expression to evaluate.
         -> m Integer    -- ^ Result.
-    evalToInteger cond = do
-        conds <- evalExpression [] cond 
-        choice . flip map conds $ \cond -> case cond of
+    evalToInteger val = do
+        evalExpression [] val 
+        val <- getReturnValue
+        case val of
             Natural b -> return b
             others    -> fail $ "ERROR " ++ show others ++ " is no natural."
 
@@ -186,3 +253,5 @@ where
                         _ -> fail $ "ERROR exit code " ++ show n ++ "."
                 ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
                 TrackBack -> trackBack 
+
+-}

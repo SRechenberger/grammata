@@ -31,9 +31,11 @@ module Grammata.Machine.Core.Class
     GrammataCore (..),
 
     -- * Auxiliaries.
-    Ident, Pointer, parallel
+    Ident, Pointer
 )
 where 
+
+    import Prelude hiding (toInteger)
 
     import Control.Applicative (empty, (<|>), Alternative)
 
@@ -54,15 +56,11 @@ where
         -- | Chooses one value from a list.
         choice       :: [m a] -> m a 
         choice = foldr (<|>) empty 
-        -- | Calling and running a function, returning it's result.
-        callFunction :: Ident -> [Basic] -> m [Basic]
+        -- | Calling and running a procedure.
+        callProcedure :: Ident -> (Basic -> m ()) -> [Basic] -> m ()
+        -- | Saves the currents state and the action to perform after backtracking as a backtrack point.
+        setBacktrackPoint :: m () -> m ()
+        -- | Returns to the last backtrack point.
+        trackback :: m ()
         -- | Read a symbol from the stack.
-        getSymbol    :: Ident -> m Basic
-
-
-    -- | Transforms a list like @[[1],[2,3],[4],[5,6,7]]@ to @[[1,2,4,5],[1,2,4,6],[1,2,4,7],[1,3,4,5],[1,3,4,6],[1,3,4,7]]@.
-    parallel :: (Show a) 
-        => [[a]] -- ^ Input list.
-        -> [[a]] -- ^ Output list.
-    parallel [] = [[]]
-    parallel (xs:xss) = [x:ys | x <- xs, ys <- parallel xss]
+        getSymbol    :: Ident -> m Basic 

@@ -31,18 +31,22 @@ module Grammata.Machine.Core.Functional
     CoreFunctional (..),
 
     -- * Core lambda expression AST.
-    CoreLambda (..),
-    -- ** Reducing lambda expressions.
-    reduce, callLambda
+    CoreLambda (..), CoreLambdaMethod (..), 
+    -- ** Reducing lambda-programs.
+    runLambda, reduce
 )
 where 
 
-    import Grammata.Machine.Core.Types (Basic (..))
+    import Prelude hiding (toInteger)
+
+    import Grammata.Machine.Core.Types (Basic (..), toBoolean, toInteger)
     import Grammata.Machine.Core.Class (GrammataCore (..), Pointer, Ident)
 
     import Control.Applicative ((<*>), (<$>), pure, (<|>))
 
     import Data.List (intercalate)
+
+    data CoreLambdaMethod m = CLM (CoreLambda m) [Ident]
 
     -- | Core language lambda expressions.
     data CoreLambda m = 
@@ -83,23 +87,11 @@ where
         -- | Overwrites whatever was on the heap in the referenced cell with what is given.
         rewrite  :: Pointer -> CoreLambda m -> m ()
         -- | Loads an expression from the heap and evaluates it, if this was not done already.
-        fromHeap :: Pointer -> m (CoreLambda m)
+        fromHeap :: Pointer -> (CoreLambda m -> m ()) -> m ()
         -- | Gets the value of an identifier from the global scope.
         loadFree :: Ident -> m Basic 
         -- | Checks, whether an identifier references a value on the stack.
         exists   :: Ident -> m Bool
-        -- | Evaluates a lambda expression to a basic value.
-        getBasic :: CoreLambda m -> m Basic 
-        getBasic e = reduce e >>= \b -> case b of
-            FConst c -> case c of
-                HeapObj ptr -> fromHeap ptr >>= getBasic
-                x           -> return x 
-            e        -> new e >>= return . HeapObj 
-        -- | Evaluates a lambda expression to a boolean value.
-        getBool  :: CoreLambda m -> m Bool 
-        getBool e = getBasic e >>= \b -> case b of
-            Boolean bool -> return bool 
-            e            -> fail $ "ERROR " ++ show e ++ " is no boolean." 
 
 
     -- | Checks whether a lambda expression is reducable.
@@ -120,17 +112,18 @@ where
 
     -- | Binds some expressions within a lambda abstraction.
     bind :: (CoreFunctional m)
-        => CoreLambda m         -- ^ Lambda expression to bind in.
-        -> [CoreLambda m]       -- ^ Lambda expressions to bind.
-        -> m (CoreLambda m)     -- ^ First expression with bound variables.
-    bind f args = case f of
-        FConst (HeapObj ptr) -> fromHeap ptr >>= flip bind args 
+        => CoreLambda m           -- ^ Lambda expression to bind in.
+        -> [CoreLambda m]         -- ^ Lambda expressions to bind.
+        -> (CoreLambda m -> m ()) -- ^ Returning point.
+        -> m ()                   -- ^ Binding action.
+    bind f args retPt = case f of
+        FConst (HeapObj ptr) -> fromHeap ptr (\expr -> bind expr args retPt) 
         FAbs ids e -> mapM new args >>= (if length args == length ids 
             then return . foldr subst e . zip ids 
             else if length ids > length args 
                 then return . FAbs (drop (length args) ids) . foldr subst e . zip ids
-                else return . flip FApp (drop (length ids) args) . foldr subst e . zip ids)
-        others -> FApp <$> reduce others <*> pure args 
+                else return . flip FApp (drop (length ids) args) . foldr subst e . zip ids) >>= retPt
+        other -> retPt (FApp other args)
 
     -- | Substitutes all variables of the given name with a given pointer in the given expression.
     subst :: (CoreFunctional m) 
@@ -157,39 +150,79 @@ where
     -- | Reduces a lambda expression by one step.
     step :: (CoreFunctional m) 
         => CoreLambda m     -- ^ Expression to reduce.
-        -> m [CoreLambda m] -- ^ Possible reduced expressions.
-    step expr = case expr of
-        FVar i               -> loadFree i >>= return . return . FConst 
-        FConst (HeapObj ptr) -> fromHeap ptr >>= return . return 
-        FIf c e1 e2          -> do 
-            cond <- getBool c 
-            return . return $ if cond then e1 else e2 
-        FOp op as            -> mapM getBasic as >>= op >>= return . return . FConst
-        FCall id as          -> mapM getBasic as >>= callFunction id >>= return . map FConst 
-        FLet defs e          -> let (is, es) = unzip defs in do 
+        -> (CoreLambda m -> m ())  -- ^ Returning Point.
+        -> m ()             -- ^ Evaluation action.
+    step expr retPt = case expr of
+        FVar i -> 
+            loadFree i >>= retPt . FConst
+
+        FConst (HeapObj ptr) -> 
+            fromHeap ptr (\heapObj -> reduce heapObj retPt)
+
+        FIf c e1 e2 -> 
+            reduceToBasic c $ \basic -> do 
+                cond <- toBoolean basic 
+                reduce (if cond then e1 else e2) retPt
+
+        FOp op as -> 
+            reduceList as [] (\bscs -> op bscs >>= retPt . FConst)
+
+        FCall id as -> 
+            reduceList as [] (callProcedure id $ retPt . FConst)
+
+        FLet defs e -> let (is, es) = unzip defs in do 
             ptrs <- mapM (const alloc) defs 
             let ip = is `zip` ptrs 
             mapM_ (\(p,e) -> rewrite p $ foldr subst e ip) (ptrs `zip` es) 
-            return . return $ foldr subst e ip 
-        FApp f args          -> case args of 
-            []   -> return [f]
-            args -> bind f args >>= return . return
+            reduce (foldr subst e ip) retPt 
+
+        FApp f args -> case args of 
+            []   -> reduce f retPt
+            args -> bind f args (\expr -> reduce expr retPt)
 
     {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
         @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.
     -}
-    reduce :: (CoreFunctional m) 
+    reduceToBasic :: (CoreFunctional m) 
         => CoreLambda m     -- ^ Expression to reduce.
-        -> m (CoreLambda m) -- ^ Reduced expression.
-    reduce expr = do
+        -> (Basic -> m ())  -- ^ Returning point.
+        -> m ()             -- ^ Reduction action.
+    reduceToBasic expr retPt = reduce expr $ \expr' -> do 
+        case expr' of 
+            FConst c -> retPt c 
+            others   -> new others >>= retPt . HeapObj
+
+
+    reduce :: (CoreFunctional m)
+        => CoreLambda m
+        -> (CoreLambda m -> m ())
+        -> m ()
+    reduce expr retPt = do 
         redex <- isRedex expr 
         if redex 
-            then step expr >>= choice . map reduce
-            else return expr
+            then step expr retPt
+            else retPt expr 
+
+
+    -- | Reduces a list of lambda expressions; supporting full backtracking.
+    reduceList :: (CoreFunctional m)
+        => [CoreLambda m]       -- ^ List of expressions to evaluate.
+        -> [Basic]              -- ^ Accumulator for the evaluated values.
+        -> ([Basic] -> m ())    -- ^ Returning point.
+        -> m ()                 -- ^ Reduction extion.
+    reduceList exprs bscs retPt = case exprs of
+        []   -> retPt . reverse $ bscs
+        e:es -> reduceToBasic e $ \bsc -> reduceList es (bsc:bscs) retPt 
+
 
     -- | Calls a lambda and reduces it to a basic value (also to pointers).
-    callLambda :: (CoreFunctional m)
-        => CoreLambda m  -- ^ Expression to reduce.
-        -> [Basic]       -- ^ Arguments for the function.
-        -> m Basic       -- ^ Result (may be a pointer to a heap object).
-    callLambda expr args = pure args >>= getBasic . FApp expr . map FConst
+    runLambda :: (CoreFunctional m)
+        => CoreLambdaMethod m   -- ^ Expression to reduce.
+        -> [Basic]              -- ^ Arguments.
+        -> (Basic -> m ())      -- ^ Returning point.
+        -> m ()                 -- ^ Program action.
+    runLambda (CLM lambda params) args retPt= do 
+        enter (params `zip` args)
+        reduceToBasic lambda $ \bsc -> do
+            leave
+            retPt bsc

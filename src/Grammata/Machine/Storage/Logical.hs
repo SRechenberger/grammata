@@ -34,43 +34,34 @@ module Grammata.Machine.Storage.Logical
     newLStorage,
 
     -- * Reading and writing
-    collect, fetch, initSearch
+    pushBacktrackPoint,
+    popBacktrackPoint,
 )
 where
 
     -- | A heap for collecting nondeterministically gained bindings.
-    data LStorage ident value = LStorage {
-            success :: Bool,
-            sought :: Maybe ident,
-            current :: [value] -- ^ The currently non saved solutions.
-        } deriving (Show)
+    data LStorage state monad = LStorage {
+            backtrackPoints :: [(state, monad ())]
+        } deriving ()
 
-    -- | An empty storge.
-    newLStorage :: () 
-        => LStorage ident value -- ^ The new empty heap.
-    newLStorage = LStorage False Nothing []
+    instance Show (LStorage state monad) where
+        show (LStorage l) = "[" ++ map (const '*') l ++ "]"
 
-    initSearch :: (Monad m) 
-        => ident
-        -> LStorage ident value 
-        -> m (LStorage ident value)
-    initSearch var storage = return storage {sought = Just var}
+    -- | Creates a new logical storage.
+    newLStorage :: ()
+        => LStorage state monad     -- ^ New logical storage.
+    newLStorage = LStorage []
 
-    -- | Collects a new value, and sets success to true.
-    collect :: (Monad m) 
-        => value                    -- ^ Value to collect.
-        -> LStorage ident value     -- ^ Storage to modify.
-        -> m (LStorage ident value) -- ^ Modified storage.
-    collect val storage = let vals = current storage in return storage {success = True, current = val:vals}
+    -- | Pushes a return address to the Storage.
+    pushBacktrackPoint :: (Monad monad)
+        => (state, monad ())            -- ^ Return address to push.
+        -> LStorage state monad         -- ^ Storage to push to.
+        -> monad (LStorage state monad) -- ^ Updated storage.
+    pushBacktrackPoint point (LStorage rpts) = return $ LStorage (point:rpts)
 
-    -- | Fetches the results of a search.
-    fetch :: (Monad m)
-        => LStorage ident value             -- ^ Storage to fetch from.
-        -> m (Either Bool (ident, [value])) -- ^ Result.
-    fetch s = return $ if success s 
-        then case sought s of
-            Nothing -> Left True 
-            Just v  -> Right (v, current s)
-        else Left False
-
-
+    -- | Pops a return address from the Storage.
+    popBacktrackPoint :: (Monad monad) 
+        => LStorage state monad                             -- ^ Storage to pop from.
+        -> monad (LStorage state monad, (state, monad ()))  -- ^ Pair of the updated storage and the return point.
+    popBacktrackPoint (LStorage []) = fail $ "ERROR no further backtracking points set."
+    popBacktrackPoint (LStorage (rpt:rpts)) = return (LStorage rpts, rpt)

@@ -123,7 +123,7 @@ module Grammata.Language
     -- * Grammata AST
     Program (..), Value (..), Expression (..), Returns (..),
     -- ** Subprograms
-    Subprogram (..), 
+    Subprg (..), 
     -- ** Functional
     Lambda (..),
     -- ** Imperative
@@ -136,7 +136,7 @@ module Grammata.Language
 )
 where
 
-    import Grammata.Language.Program (Program (..), Returns (..), Subprogram (..), parseProgram)
+    import Grammata.Language.Program (Program (..), Returns (..), Subprg (..), parseProgram)
     import Grammata.Language.Functional (Lambda (..))
     import Grammata.Language.Imperative (Statement (..))
     import Grammata.Language.Logical (Term (..), Goal (..), Clause (..), Rule (..), Base)

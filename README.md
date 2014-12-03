@@ -41,7 +41,7 @@ DISJ       ::= KONJ {&& KONJ}*
 KONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
 COMP       ::= SUM {{+ | -} SUM}*
 SUM        ::= SIMPLE {{ * | / } SIMPLE}*
-SIMPLE     ::= \\ LOG+ . LAMBDA
+SIMPLE     ::= \ LOG+ . LAMBDA
              | if LAMBDA then LAMBDA else LAMBDA end
              | let DEF* in LAMBDA end
              | ( LAMBDA )

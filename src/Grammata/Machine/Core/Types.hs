@@ -28,16 +28,20 @@
 module Grammata.Machine.Core.Types
 (
     -- * Basic type
-    Basic (..)
+    Basic (..), toBoolean, toInteger
 )
 where
 
+    import Prelude hiding (toInteger)
+    
     import Data.List (intercalate) 
 
     -- | Basic values for the virtual machnine.
-    data Basic = 
+    data Basic 
+        -- | Just nothing.
+        = Null
         -- | A boolean.
-          Boolean Bool 
+        | Boolean Bool 
         -- | A natural.
         | Natural Integer
         -- | A real. 
@@ -49,8 +53,24 @@ where
         deriving (Eq)
 
     instance Show Basic where
+        show Null          = "null"
         show (Boolean b)   = if b then "true" else "false"
         show (Natural i)   = show i
         show (Real r)      = show r
         show (Struct n a args) = n ++ if a > 0 then "(" ++ intercalate "," (take a . map show $ args) ++ ")" else ""
         show (HeapObj ptr) = "object@" ++ show ptr
+
+
+    -- | Returns the boolean held by a given basic; if no boolean is held, it fails.
+    toBoolean :: (Monad m) 
+        => Basic 
+        -> m Bool 
+    toBoolean (Boolean b) = return b 
+    toBoolean others      = fail $ "ERROR " ++ show others ++ " is no boolean."
+
+    -- | Returns the integer held by a given basic; if no integer is held, it fails.
+    toInteger :: (Monad m)
+        => Basic 
+        -> m Integer 
+    toInteger (Natural i) = return i 
+    toInteger others      = fail $ "ERROR " ++ show others ++ " is no integer." 

@@ -39,7 +39,7 @@ module Grammata.Machine.Core.Logical
     CoreQuery (..),
 
     -- ** Auxiliary functions
-    newVar,
+    lVar,
 
     -- * Calling
     askQuery
@@ -47,14 +47,16 @@ module Grammata.Machine.Core.Logical
 )
 where 
 
+    import Debug.Trace
+
     import Data.Monoid (Monoid (..), (<>))
     import Data.List (intercalate)
 
     import Control.Monad.State (State, evalState, get, put)
-    import Control.Applicative ((<$>), (<*>), (<|>))
+    import Control.Applicative ((<$>), (<*>), (<|>), pure)
     import Control.Monad (forM)
 
-    import Grammata.Machine.Core.Class (Ident, GrammataCore (..), parallel)
+    import Grammata.Machine.Core.Class (Ident, GrammataCore (..))
     import Grammata.Machine.Core.Types (Basic (..))
 
 
@@ -63,9 +65,11 @@ where
         -- | Loads a base by its name.
         getBase :: Ident -> m [CoreRule]
 
+
     -- | Applying a substitution.
     class ApplySubst t where
         (~~>) :: Subst -> t -> t 
+
 
     -- | Consecutive renaming of terms in @t@.
     class NextNames t where
@@ -80,6 +84,7 @@ where
 
     instance NextNames LVar where
         nextNames (n :$ i) = n :$ (i+1)
+
 
     -- | Terms of predicate logic.
     data CoreTerm = 
@@ -97,12 +102,14 @@ where
         show (Atom val) = show val
         show (LFun n i args) = n ++ (if i == 0 then "" else "(" ++ (intercalate ", " . take i . map show $ args) ++ ")")
 
+
     -- | A substitution of logical variables.
     data Subst = Subst {apply :: CoreTerm -> CoreTerm}
 
     instance Monoid Subst where
         mempty = Subst id
         s1 `mappend` s2 = Subst $ \x -> apply s2 . apply s1 $ x 
+
 
     -- | A logical goal.
     data CoreGoal = 
@@ -120,6 +127,7 @@ where
     instance NextNames CoreGoal where
         nextNames (LPred i a ts) = LPred i a (map nextNames ts)
         nextNames (t1 :=: t2) = nextNames t1 :=: nextNames t2
+
 
     -- ^ A clause list.    
     data CoreClause =
@@ -142,6 +150,7 @@ where
         nextNames (LNot cs) = LNot . map nextNames $ cs 
         nextNames (LGoal g) = LGoal . nextNames $ g 
 
+
     -- | A Prolog like rule. 
     data CoreRule = CoreGoal :- [CoreClause] 
 
@@ -152,6 +161,7 @@ where
     instance NextNames CoreRule where
         nextNames (head :- cs) = nextNames head :- map nextNames cs
 
+
     {- | A parameterized rule, asking a list of bases for a given clause list, 
          and returning either just a boolean or, if a binding for a certain variable was sought, its binding. -}
     data CoreQuery = Query [Ident] (Maybe Ident) [Ident] [CoreClause] 
@@ -161,44 +171,61 @@ where
             Nothing -> show bs ++ " ?- " ++ show cs ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
             Just s  -> show bs ++ " ?- " ++ show cs ++ " for " ++ show s ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
 
+
     -- | Generates a new logical variable packed in a term.
-    newVar :: ()
-        => Ident -- ^ Identifier, to name the variable with.
+    lVar :: ()
+        => Ident    -- ^ Identifier, to name the variable with.
         -> CoreTerm -- ^ Term, holding the variable.
-    newVar i = Var (i :$ 0)
+    lVar i = Var (i :$ 0)
+
 
     -- | Converts a basic value to a logical term.
     basicToTerm :: () 
-        => Basic -- ^ Basic value to convert.
+        => Basic    -- ^ Basic value to convert.
         -> CoreTerm -- ^ Generated term.
     basicToTerm (Struct n i as) = LFun n i (map basicToTerm as)
     basicToTerm b = Atom b
 
+
     -- | Converts a term to a basic value, by calling functions and resolving zero-arity-functions to there basic value in the state context.
     termToBasic :: CoreLogical m 
-        => CoreTerm     -- ^ Term to convert.
-        -> m [Basic] -- ^ Possible values of the term.
-    termToBasic (Atom b) = return [b]
-    termToBasic (Var v)  = fail $ "ERROR " ++ show v ++ " is unbound."
-    termToBasic (LFun n i as) = if i == 0 
-        then (:[]) <$> (getSymbol n <|> return (Struct n i [])) 
-        else mapM termToBasic as >>= return . parallel >>= \argss -> (choice . map (callFunction n) $ argss) <|> (return . map (Struct n i) $ argss) 
+        => CoreTerm         -- ^ Term to convert.
+        -> (Basic -> m ())  -- ^ Returing point.
+        -> m ()             -- ^ Remaining program action.
+    termToBasic term retPt = case term of 
+        Atom b -> retPt b 
+        Var v  -> fail $ "ERROR " ++ show v ++ " is unbound."
+        LFun n i as 
+            | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
+            | otherwise -> termToBasicList as [] $ \bscs -> callProcedure n retPt bscs <|> retPt (Struct n i bscs)
+
+
+    -- | Converts a list of terms to basic values.
+    termToBasicList :: CoreLogical m 
+        => [CoreTerm]           -- ^ List of terms to convert.
+        -> [Basic]              -- ^ Accumulator for the basics.
+        -> ([Basic] -> m ())    -- ^ Returning point.
+        -> m ()                 -- ^ Remaining program action.
+    termToBasicList terms bscs retPt = case terms of 
+        []   -> retPt . reverse $ bscs 
+        t:ts -> termToBasic t $ \bsc -> termToBasicList ts (bsc:bscs) retPt
 
     -- | Occurs check for logical terms.
     occursIn :: ()
-        => LVar   -- ^ Variable whichs occurance shall be checked.
-        -> CoreTerm  -- ^ Term in which the variable shall not occur.
-        -> Bool   -- ^ Occurs check result.
+        => LVar     -- ^ Variable whichs occurance shall be checked.
+        -> CoreTerm -- ^ Term in which the variable shall not occur.
+        -> Bool     -- ^ Occurs check result.
     occursIn var s = case s of
         Var var' -> var' == var 
         Atom _   -> False
         LFun _ _ args -> or . map (occursIn var) $ args
 
+
     -- | Generates a new substitution, which replaces the given identifier by the given term.
     newSubst :: () 
-        => LVar   -- ^ Variable to replace.
-        -> CoreTerm  -- ^ Term, to which the variable is bound.
-        -> Subst  -- ^ Generated substitution.
+        => LVar     -- ^ Variable to replace.
+        -> CoreTerm -- ^ Term, to which the variable is bound.
+        -> Subst    -- ^ Generated substitution.
     newSubst var val = Subst $ \x -> apply' x
         where 
             apply' x = case x of
@@ -206,10 +233,11 @@ where
                 Atom b -> Atom  b
                 LFun i n args  -> LFun i n (map apply' args)   
 
+
     -- | Unifies two terms and returns a substitution if the terms are unifiable.
     unify :: () 
-        => CoreTerm        -- ^ Term a.
-        -> CoreTerm        -- ^ Term b.
+        => CoreTerm     -- ^ Term a.
+        -> CoreTerm     -- ^ Term b.
         -> Maybe Subst  -- ^ Substion or nothing.
     unify (Atom c1) (Atom c2)              = if c1 == c2 then Just mempty else Nothing
     unify (Atom c1) (Var  v2)              = Just . newSubst v2 . Atom $ c1
@@ -221,10 +249,11 @@ where
     unify s@(LFun _ _ _) (Var v2)          = if v2 `occursIn` s then Nothing else Just $ newSubst v2 s
     unify (LFun f a args) (LFun g b args') = if f == g && a == b then unifyList args args' mempty else Nothing
 
+
     -- | Unifies two lists of terms and accumulates the resuling substitutions in a given one; returning the final one, of possible.
     unifyList :: ()
-        => [CoreTerm]      -- ^ List of terms a.
-        -> [CoreTerm]      -- ^ List of terms b.
+        => [CoreTerm]   -- ^ List of terms a.
+        -> [CoreTerm]   -- ^ List of terms b.
         -> Subst        -- ^ Substitution to accumulate in.
         -> Maybe Subst  -- ^ Maybe the final substitution.
     unifyList [] [] s = Just s 
@@ -232,10 +261,11 @@ where
         Nothing -> Nothing
         Just s' -> unifyList as bs (s <> s')
 
+
     -- | Tries to match two predicates, returning a substitution, if there is one.
     match :: ()
-        => CoreGoal        -- ^ Predicate a.
-        -> CoreGoal        -- ^ Predicate b.
+        => CoreGoal     -- ^ Predicate a.
+        -> CoreGoal     -- ^ Predicate b.
         -> Maybe Subst  -- ^ Maybe a substitution, unifying a and b.
     match p1@(LPred name arity terms) p2@(LPred name' arity' terms') = if name == name' && arity == arity' 
         then unifyList terms terms' mempty
@@ -249,46 +279,63 @@ where
         -> Maybe (Subst, [CoreClause]) -- ^ Maybe the MGU and the body of the given rule.
     matchWithRule pred (pred' :- clauses) = fmap (flip (,) clauses) $ pred `match` pred'
 
-    -- | Checks the satisfiability of a given clause list under a given list of rules and a substitution.
-    search :: ()
-        => [CoreClause]       -- ^ The clauses to check.
-        -> [CoreRule]         -- ^ The knowledge base.
-        -> Subst           -- ^ The initial substitution.
-        -> (Bool, [Subst]) -- ^ The satisfiability and a list of satisfying bindings. 
-    search [] _ s = (True, [s])
-    search (goal:goals) base s = case goal of 
-        LOr css -> let
-            (ss,rs) = unzip . map (\cs -> search (cs ++ goals) base s) $ css
-            in (or ss, concat rs)
-        LNot cs -> let 
-            (succ, _) = search cs base s 
-            in if not succ 
-                then search goals base s
-                else (False, []) 
+
+    -- | Searches for substitutions via SLD resolution given a list of clauses, a list of rules and an initial substitution.
+    search :: (CoreLogical m) 
+        => [CoreClause]             -- ^ List of clauses.
+        -> [CoreRule]               -- ^ List of rules.
+        -> Subst                    -- ^ Initial substitution.
+        -> ((Bool, Subst) -> m ())  -- ^ Returning point.
+        -> m ()                     -- ^ Remaining program action.
+    search []     _    s retPt = retPt (True, s)
+    search (g:gs) base s retPt = case g of
+        LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base retPt
+        LNot cs -> do
+            search cs base s $ \(success, _) -> if success 
+                then trackback
+                else search gs base s retPt
         LGoal g -> case g of
             t1 :=: t2 -> case t1 `unify` t2 of
-                    Nothing -> (False, [])
-                    Just s' -> let ss = s <> s' in search (map (ss ~~>) goals) base ss
+                Nothing -> trackback
+                Just s' -> let ss = s <> s' in search (map (ss ~~>) gs) base ss retPt
             predicate -> let 
-                matches = [match | Just match <- map (matchWithRule predicate) base] 
-                (successes, results) = unzip . map (\(s', cs) -> let ss = s <> s' in search (map (ss ~~>) (cs ++ goals)) (map nextNames base) ss) $ matches 
-                in (or successes, concat results)
+                matches = [match | Just match <- map (matchWithRule predicate) base]
+                candidates = map (\(s',cs) -> (s <> s', map (s' ~~>) (cs ++ gs))) matches
+                in searchList candidates base retPt
+
+
+    -- | Searches for a substitution via SLD resolutions given a list of pairs of substitution and clauses, on which the substitution is applied to,
+    -- and a list of rules.
+    searchList :: (CoreLogical m)
+        => [(Subst, [CoreClause])]  -- ^ Pairs of substitutions and clauses; the substitution is applied to the clauses and then a given to @search@. 
+        -> [CoreRule]               -- ^ List of rules.
+        -> ((Bool, Subst) -> m ())  -- ^ Returning point.
+        -> m ()                     -- ^ Remaining program action.
+    searchList [] _ retPt = trackback
+    searchList ((s, gs):cs) base retPt = do 
+        setBacktrackPoint (searchList cs base retPt)
+        search gs base s retPt
 
     -- | Asks a query under given arguments.
     askQuery :: (CoreLogical m)
-        => CoreQuery     -- ^ Query to ask.
-        -> [Basic]   -- ^ Arguments.
-        -> m [Basic] -- ^ Possible results.
-    askQuery (Query params sought bases clauses) args = let p_as = params `zip` args in do 
+        => CoreQuery        -- ^ Query to ask.
+        -> [Basic]          -- ^ Arguments.
+        -> (Basic -> m ())  -- ^ Returning point.
+        -> m ()             -- ^ Remaining program action.
+    askQuery (Query params sought bases clauses) args retPt = let p_as = params `zip` args in do 
         enter p_as
-        (success, result) <- mapM getBase bases >>= \bs -> return $ search clauses (prepareBase . concat $ bs) mempty 
-        toReturn <- case sought of 
-            Nothing -> return [Boolean success]
-            Just id -> choice . map return =<< return . parallel =<< (mapM termToBasic . map (\s -> s `apply` (newVar id)) $ result)
-        leave
-        return toReturn
+        allBases <- prepareBase . concat <$> mapM getBase bases 
+        case sought of 
+            Nothing -> search clauses allBases mempty $ \(success, _) -> retPt (Boolean success)
+            Just x  -> search clauses allBases mempty $ \(success, subst) -> if success
+                then do 
+                    termToBasic (subst `apply` (lVar x)) $ \basic -> do 
+                        leave 
+                        retPt basic
+                else trackback
 
-    -- | Renames all variables in any rule, in order that they hopefully never collide with variables in any clause.
+
+    -- | Renames all variables in any rule, such that they hopefully never collide with variables in any clause.
     prepareBase :: () 
         => [CoreRule] -- ^ Old knowledge base.
         -> [CoreRule] -- ^ Prepared one.
@@ -306,8 +353,3 @@ where
             newNameClause (LOr css) = LOr <$> mapM (mapM newNameClause) css
             newNameClause (LNot cs) = LNot <$> mapM newNameClause cs
             newNameClause (LGoal g) = LGoal <$> newNamePred g
-
-
-
-
-    

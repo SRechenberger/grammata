@@ -27,8 +27,35 @@
 
 module Grammata.Interpreter.Compilation
 (
-    module Grammata.Interpreter.Compilation.Functional
-    module Grammata.Interpreter.Compilation.Imperative
-    module Grammata.Interpreter.Compilation.Logical
+    compileProgram
 )
 where
+
+    import Grammata.Machine (
+        imperative, functional, query, base,
+        iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVal, iVar, iOp, iFunc, CoreStatement,
+        fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs,
+        lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar,
+        bBool, bNat, bReal, bStruct, bNull, 
+        Machine, Ident
+        )
+    import qualified Grammata.Machine as M (Basic (Natural, Boolean, Real))
+    import Grammata.Language(
+        Program (..),
+        Value (..),
+        Expression (..),
+        Returns (..),
+        Subprg (..),
+        Lambda (..),
+        Statement (..),
+        Rule (..),
+        Clause (..),
+        )
+
+    import Grammata.Interpreter.Compiler (Compiler, runCompiler, ask)
+
+    import Control.Applicative ((<$>), (<*>))
+
+
+   
+

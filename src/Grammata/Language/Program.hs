@@ -41,7 +41,7 @@ module Grammata.Language.Program
     -- * Grammata 
     Program (..), Returns (..),
     -- * Subprograms
-    Subprogram (..), 
+    Subprg (..), 
 
     -- * Parser
     parseProgram
@@ -68,7 +68,7 @@ where
         deriving (Show, Eq)
 
     -- | AST @SUBPRG@.
-    data Subprogram  
+    data Subprg  
         = Procedure Returns [String] [(String, Maybe (Expression Value))] [Statement]
         | Lambda [String] Lambda
         | Query [String] [String] (Maybe String) Clause
@@ -76,7 +76,7 @@ where
         deriving(Show, Eq)
 
     -- | AST @PROGRAM@.
-    data Program = Program {name :: String, globals :: [(String, Maybe (Expression Value))] {- ^ Global identifiers. -}, subs :: [(String, Subprogram)] {- ^ Subprograms. -}}
+    data Program = Program {name :: String, globals :: [(String, Maybe (Expression Value))] {- ^ Global identifiers. -}, subs :: [(String, Subprg)] {- ^ Subprograms. -}}
         deriving (Show, Eq)
 
 
@@ -97,7 +97,7 @@ where
             decl :: Parser (String, Maybe (Expression Value))
             decl = (,) <$> (token "var" *> ident) <*> (try (token ":=" *> (Just <$> parseExpression) <* token ";") <|> (token ";" *> pure Nothing))
 
-            subprg :: Parser (String, Subprogram) 
+            subprg :: Parser (String, Subprg) 
             subprg = spaces >> (lookAhead . choice . map token) ["proc", "func", "lambda", "query", "base"] >>= \la -> case la of
                 "proc"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if not ret 
                     then pure (name, Procedure Void params decls stmts)

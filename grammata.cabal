@@ -35,6 +35,8 @@ executable grammata
                        Grammata.Language.Imperative,
                        Grammata.Language.Logical,
                        Grammata.Language.Value
+                       Grammata.Interpreter.Compilation
+                       Grammata.Interpreter.Compiler
   build-depends:       base == 4.*, 
                        mtl == 2.*, 
                        transformers == 0.*, 
