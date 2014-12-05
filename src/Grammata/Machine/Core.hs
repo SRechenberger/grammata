@@ -33,7 +33,7 @@ module Grammata.Machine.Core
     Ident, Pointer, Subprogram (..), Machine,
 
     -- * Core Language
-    runProgram, Basic (..),
+    runProgram, Basic (..), (=:=), (=/=),
     -- ** Imperative
     CoreStatement (..), CoreMethod (..), CoreExpression (..),
 
@@ -49,7 +49,7 @@ where
     import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runCoreMethod, evalExpressionlist, CoreImperative (..), CoreMethod (..))
     import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), CoreLambdaMethod (..), runLambda, reduce)
     import Grammata.Machine.Core.Logical (CoreLogical (..), askQuery, CoreQuery (..), CoreRule (..), CoreClause (..), CoreGoal (..), CoreTerm (..), lVar)
-    import Grammata.Machine.Core.Types (Basic (..))
+    import Grammata.Machine.Core.Types (Basic (..), (=:=), (=/=))
 
     import Grammata.Machine.Grammateion (Grammateion, runGrammateion, get, put, ask, liftIO)
 
@@ -89,12 +89,12 @@ where
         callProcedure name retPt args = do 
             Dict dict <- ask 
             case name `lookup` dict of 
-                Nothing -> fail $ "ERROR method " ++ name ++ " not found."
+                Nothing -> retPt $ Struct name (length args) args
                 Just meth -> case meth of 
                     Imperative method access -> runCoreMethod method args access retPt
                     Functional lambda        -> runLambda lambda args retPt
                     Logical query            -> askQuery query args retPt
-                    Base _                   -> fail "ERROR cannot run logical base as procedure."
+                    Base _                   -> fail $ "ERROR cannot run logical base " ++ name ++ " as procedure."
         setBacktrackPoint btp = do 
             state <- get 
             t <- (return . trail) state >>= pushBacktrackPoint ((stack state, heap state), btp) 

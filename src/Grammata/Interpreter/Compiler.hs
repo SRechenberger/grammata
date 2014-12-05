@@ -30,29 +30,35 @@
 module Grammata.Interpreter.Compiler 
 (
     Compiler (..),
-    MonadReader (ask)
+    MonadReader (ask),
+    getVars,
+    getFuncs
 )
 where
 
     import Control.Applicative (Applicative (..))
     import Control.Monad.Reader (MonadReader (..))
 
-    newtype Compiler dict a = Compiler {runCompiler :: dict -> Either String a} 
+    newtype Compiler vars funcs a = Compiler {runCompiler :: vars -> funcs -> Either String a} 
 
-    instance Monad (Compiler dict) where
-        return x = Compiler $ \_ -> Right x
-        comp >>= f = Compiler $ \d -> case runCompiler comp d of 
+    instance Monad (Compiler vars funcs) where
+        return x = Compiler $ \_ _ -> Right x
+        comp >>= f = Compiler $ \vs fs -> case runCompiler comp vs fs of 
             Left msg -> Left msg
-            Right a' -> runCompiler (f a') d
-        fail msg = Compiler $ \_ -> Left msg
+            Right a' -> runCompiler (f a') vs fs
+        fail msg = Compiler $ \_ _ -> Left msg
 
-    instance Functor (Compiler dict) where
+    instance Functor (Compiler  vars funcs) where
         fmap f comp = comp >>= return . f
 
-    instance Applicative (Compiler dict) where
+    instance Applicative (Compiler  vars funcs) where
         pure = return
         cf <*> ca = cf >>= \f -> fmap f ca
 
-    instance MonadReader dict (Compiler dict) where
-        ask = Compiler $ \d -> Right d
-        local f comp = Compiler $ runCompiler comp . f 
+    getVars :: ()
+        => Compiler vars funcs vars
+    getVars = Compiler $ \vs _ -> Right vs
+
+    getFuncs :: () 
+        => Compiler vars funcs funcs 
+    getFuncs = Compiler $ \_ fs -> Right fs

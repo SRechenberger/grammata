@@ -28,11 +28,13 @@
 module Grammata.Machine.Core.Types
 (
     -- * Basic type
-    Basic (..), toBoolean, toInteger
+    Basic (..), toBoolean, toInteger, (=:=), (=/=)
 )
 where
 
     import Prelude hiding (toInteger)
+
+    import Control.Applicative ((<$>))
     
     import Data.List (intercalate) 
 
@@ -59,6 +61,23 @@ where
         show (Real r)      = show r
         show (Struct n a args) = n ++ if a > 0 then "(" ++ intercalate "," (take a . map show $ args) ++ ")" else ""
         show (HeapObj ptr) = "object@" ++ show ptr
+
+    (=:=), (=/=) :: (Functor m, Monad m)
+        => Basic 
+        -> Basic 
+        -> m Bool  
+    Null =:= Null = return True 
+    Boolean a =:= Boolean b = return $ a == b 
+    Natural a =:= Natural b = return $ a == b 
+    Real a =:= Real b = return $ a == b 
+    Struct sa na asa =:= Struct sb nb asb = do 
+        let simple = sa == sb && na == nb 
+        complex <- and <$> mapM (\(a,b) -> a =:= b) (asa `zip` asb)
+        return $ simple && complex
+    HeapObj a =:= HeapObj b = return $ a == b 
+
+    a =/= b = not <$> a =:= b 
+
 
 
     -- | Returns the boolean held by a given basic; if no boolean is held, it fails.

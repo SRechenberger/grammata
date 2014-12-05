@@ -31,15 +31,15 @@ module Grammata.Machine
     Machine, Ident,
 
     -- * Core subprogram generation.
-    imperative, functional, query, base,
+    imperative, functional, query, base, Subprogram,
     -- ** Imperative core generation.
-    iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVar, iVal, iOp, iFunc, CoreStatement,
+    iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVar, iVal, iOp, iFunc, CoreStatement, CoreExpression,
     -- ** Functional core generation.
     fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs,
     -- ** Logical core generation.
     lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar,
     -- ** Basic value core generation.
-    bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural)
+    bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural), (=:=), (=/=)
 )
 where
 
