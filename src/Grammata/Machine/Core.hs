@@ -63,7 +63,7 @@ where
     -- | Union type for subprograms.
     data Subprogram m = 
         -- | Imperative subprogram; i.e. functions or procedures.
-          Imperative (CoreMethod m) 
+          Imperative (CoreMethod m) Bool
         -- | Functional subprogram; i.e. a lambda expression.
         | Functional (CoreLambdaMethod m) 
         -- | Logical subprogram; i.e. a query
@@ -91,10 +91,10 @@ where
             case name `lookup` dict of 
                 Nothing -> fail $ "ERROR method " ++ name ++ " not found."
                 Just meth -> case meth of 
-                    Imperative method -> runCoreMethod method args retPt
-                    Functional lambda -> runLambda lambda args retPt
-                    Logical query     -> askQuery query args retPt
-                    Base _            -> fail "ERROR cannot run logical base as procedure."
+                    Imperative method access -> runCoreMethod method args access retPt
+                    Functional lambda        -> runLambda lambda args retPt
+                    Logical query            -> askQuery query args retPt
+                    Base _                   -> fail "ERROR cannot run logical base as procedure."
         setBacktrackPoint btp = do 
             state <- get 
             t <- (return . trail) state >>= pushBacktrackPoint ((stack state, heap state), btp) 

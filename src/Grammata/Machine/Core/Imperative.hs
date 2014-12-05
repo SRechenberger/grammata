@@ -96,15 +96,16 @@ where
     runCoreMethod :: (CoreImperative m) 
         => CoreMethod m     -- ^ Method to execute.
         -> [Basic]          -- ^ Arguments of the method call.
+        -> Bool             -- ^ True, if write access to global variables is granted; false otherwise.
         -> (Basic -> m ())  -- ^ Returning point.
         -> m ()             -- ^ Remaining program action.
-    runCoreMethod (Method locals params stmts) args retPt = let p_as = params `zip` args in do
+    runCoreMethod (Method locals params stmts) args access retPt = let p_as = params `zip` args in do
         enter p_as
         let (names, exprs) = unzip locals 
         evalExpressionlist locals exprs [] $ \vals -> let locals' = names `zip` vals in do 
             leave
             enter (locals' ++ p_as)
-            runImperative stmts $ \bsc -> do
+            runImperative stmts access $ \bsc -> do
                 leave
                 retPt bsc
 
@@ -141,16 +142,17 @@ where
     -- | Executes the given sequence of 'CoreStatement's.
     runImperative :: (CoreImperative m) 
         => [CoreStatement m] -- ^ Sequence of 'CoreStatement's.
+        -> Bool              -- ^ True, if write access to global variables is granted; false otherwise.
         -> (Basic -> m ())   -- ^ Return point.
         -> m ()              -- ^ Execution action.
-    runImperative []        _     = fail "ERROR unexpected end of program."
-    runImperative (s:stmts) retPt = case s of 
+    runImperative []        _      _     = fail "ERROR unexpected end of program."
+    runImperative (s:stmts) access retPt = case s of 
         ident := expr -> 
-            evalExpression [] (\bsc -> writeLocals ident bsc >> runImperative stmts retPt) expr 
+            evalExpression [] (\bsc -> (if access then writeStack ident bsc else writeLocals ident bsc) >> runImperative stmts access retPt) expr 
         IIf cond thenBlock elseBlock -> 
-            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) retPt) cond
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) access retPt) cond
         IWhile cond block ->
-            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block else []) ++ stmts) retPt) cond
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block else []) ++ stmts) access retPt) cond
         IReturn expr -> 
             evalExpression [] (\bsc -> retPt bsc) expr
         ICall name exprs -> 

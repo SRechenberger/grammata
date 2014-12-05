@@ -50,8 +50,9 @@ where
         => [(Ident, CoreExpression m)]  -- ^ Local variables.
         -> [Ident]                      -- ^ Parameters.
         -> [CoreStatement m]            -- ^ Instructions.
+        -> Bool                         -- ^ True if writing access to global variables is granted.
         -> Subprogram m                 -- ^ Imperative subprogram.
-    imperative locals params stmts = Imperative $ Method locals params stmts
+    imperative locals params stmts access = Imperative (Method locals params stmts) access
 
     -- | Assignment: a := b;
     iAssignment :: ()
