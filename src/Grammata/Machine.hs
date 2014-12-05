@@ -37,7 +37,7 @@ module Grammata.Machine
     -- ** Functional core generation.
     fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs,
     -- ** Logical core generation.
-    lOr, lNot, lGoal, lUnify, lFun, lAtom, (<--), lPred, lVar,
+    lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar,
     -- ** Basic value core generation.
     bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural)
 )
@@ -146,115 +146,134 @@ where
         -> CoreLambda m -- ^ Functional if expression.
     fIf = FIf 
 
+    -- | Functional n-ary operation expression: op(a1,a2,..,an).
     fOp :: ()
-        => ([Basic] -> m Basic) 
-        -> [CoreLambda m] 
-        -> CoreLambda m
+        => ([Basic] -> m Basic)     -- ^ n-ary Operation op.
+        -> [CoreLambda m]           -- ^ Operand expressions a1,a2,..,an.
+        -> CoreLambda m             -- ^ n-ary operation.
     fOp = FOp 
 
+    -- | Functional function call: f(a1,a2,..,an).
     fCall :: ()
-        => Ident 
-        -> [CoreLambda m]
-        -> CoreLambda m
+        => Ident            -- ^ Identifier f.
+        -> [CoreLambda m]   -- ^ Argument expressions a1,a2,..,an.
+        -> CoreLambda m     -- ^ Functional function call.
     fCall = FCall 
 
+    -- | Letrec expression: let i1 := e1; i2 := e2; .. ; in := en; in e. 
     fLet :: () 
-        => [(Ident, CoreLambda m)] 
-        -> CoreLambda m
-        -> CoreLambda m
+        => [(Ident, CoreLambda m)]  -- ^ Identifier ii and expression ei.
+        -> CoreLambda m             -- ^ Expression e.
+        -> CoreLambda m             -- ^ Letrec expression.
     fLet = FLet
 
+    -- | Functional application expression: f a1 a2 .. an
     fApp :: ()
-        => CoreLambda m 
-        -> [CoreLambda m]
-        -> CoreLambda m 
+        => CoreLambda m     -- ^ Function expression f.
+        -> [CoreLambda m]   -- ^ Argument expressions a1, a2, .. , an.
+        -> CoreLambda m     -- ^ Functional application expression.
     fApp = FApp 
 
+    -- | Functional abstraction expression: λp1 p2 .. pn . e
     fAbs :: ()
-        => [Ident]
-        -> CoreLambda m 
-        -> CoreLambda m
+        => [Ident]      -- ^ Parameters p1, p2, .., pn.
+        -> CoreLambda m -- ^ Expression e.
+        -> CoreLambda m -- ^ Functional abstraction expression.
     fAbs = FAbs 
 
+    -- | New logical query.
     query :: ()
-        => [Ident]
-        -> Maybe Ident 
-        -> [Ident]
-        -> [CoreClause]
-        -> Subprogram m
+        => [Ident]      -- ^ Parameters.
+        -> Maybe Ident  -- ^ Maybe the variable, for which a value is sought; if Nothing: boolean is returned.
+        -> [Ident]      -- ^ Knowledge bases to be asked.
+        -> [CoreClause] -- ^ Goals of the query.
+        -> Subprogram m -- ^ Logical query.
     query params sought bases clause = Logical $ Query params sought bases clause 
 
+    -- | Logical disjunction of goals: g1;g2;..;gn.
     lOr :: ()
-        => [[CoreClause]] 
-        -> CoreClause
-    lOr = LOr 
+        => [[CoreClause]]   -- ^ List of konjoined goals g1,g2,..,gn.
+        -> CoreClause       -- ^ Logical disjunction of goals.
+    lOr = LOr  
 
+    -- | Negation of goals: ¬g.
     lNot :: ()
-        => [CoreClause]
-        -> CoreClause
+        => [CoreClause] -- ^ list of goals g.
+        -> CoreClause   -- ^ Negation of goals.
     lNot = LNot 
 
+    -- | A logical goal: g.
     lGoal :: ()
-        => CoreGoal
-        -> CoreClause
+        => CoreGoal     -- ^ Goal g.
+        -> CoreClause   -- ^ Logical goal.
     lGoal = LGoal 
 
+    -- | A n-ary predicate goal: p(t1,t2,..,tn).
     lPred :: ()
-        => Ident
-        -> Int 
-        -> [CoreTerm]
-        -> CoreGoal
-    lPred = LPred 
+        => Ident        -- ^ Identifier p. 
+        -> [CoreTerm]   -- ^ Argument terms t1,t2,..,tn.
+        -> CoreGoal     -- ^ n-ary predicate.
+    lPred ident args = LPred ident (length args) args
 
+    -- | A unify goal: t1 := t2.
     lUnify :: ()
-        => CoreTerm
-        -> CoreTerm
-        -> CoreGoal
+        => CoreTerm     -- ^ Term t1.
+        -> CoreTerm     -- ^ Term t2.
+        -> CoreGoal     -- ^ Unify goal.
     lUnify = (:=:)
 
-    lAtom :: ()
-        => Basic
-        -> CoreTerm
+    -- | A constant atom term: a.
+    lAtom :: () 
+        => Basic        -- ^ Basic value a.
+        -> CoreTerm     -- ^ A constant atom.
     lAtom = Atom 
 
+    -- | A logical function term: f(t1,t2,..,tn).
     lFun :: ()
-        => Ident
-        -> [CoreTerm]
-        -> CoreTerm
+        => Ident        -- ^ Identifier f.
+        -> [CoreTerm]   -- ^ Argument terms t1, t2, .., tn.
+        -> CoreTerm     -- ^ Logical function term.
     lFun ident args = LFun ident (length args) args
 
+    -- | A knowledge base: r1 r2 .. rn.
     base :: ()
-        => [CoreRule]
-        -> Subprogram m
+        => [CoreRule]       -- ^ Rules r1, r2, .., rn.
+        -> Subprogram m     -- ^ Subprogram representing the knowledge base.
     base = Base
 
-    (<--) :: ()
-        => CoreGoal
-        -> [CoreClause]
-        -> CoreRule
-    (<--) = (:-)
+    -- | A logical rule: h :- b..
+    lRule :: ()
+        => CoreGoal         -- ^ Head predicate h.
+        -> [CoreClause]     -- ^ Body goal b.
+        -> CoreRule         -- ^ Logical rule.
+    lRule = (:-)
 
+    -- | A basic NULL value: NULL.
     bNull :: ()
-        => Basic
+        => Basic    -- ^ NULL.
     bNull = Null
 
+    -- | A basic boolean value: b.
     bBool :: ()
-        => Bool 
-        -> Basic
+        => Bool     -- ^ Boolean value b.
+        -> Basic    -- ^ Basic boolean value.
     bBool = Boolean
 
+    -- | A basic integer value: i.
     bNat :: ()
-        => Integer
-        -> Basic
+        => Integer  -- ^ Integer value i.
+        -> Basic    -- ^ Basic integer value.
     bNat = Natural
 
+    -- | A basic double value: d.
     bReal :: ()
-        => Double
-        -> Basic
+        => Double   -- ^ Double value d.
+        -> Basic    -- ^ Basic double value.
     bReal = Real 
 
+    -- | A basic struct value: s(b1,b2,..,bn).
     bStruct :: ()
-        => String 
-        -> [Basic]
-        -> Basic
+        => Ident    -- ^ Identifier s.
+        -> [Basic]  -- ^ Argument basic values b1,b2,..,bn.
+        -> Basic    -- ^ Basic struct value.
     bStruct name bscs = Struct name (length bscs) bscs
