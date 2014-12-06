@@ -129,7 +129,7 @@ module Grammata.Language
     -- ** Imperative
     Statement (..),
     -- ** Logical
-    Rule (..), Clause (..),
+    Rule (..), Clause (..), Goal (..), Term (..),
 
     -- * Grammata Parser
     parseGrammata

@@ -29,6 +29,7 @@
 -- > VALUE ::= BOOLEAN 
 -- >         | NATURAL 
 -- >         | REAL 
+-- >         | VARIABLE
 -- > 
 -- > BOOLEAN ::= true 
 -- >           | false 
@@ -38,6 +39,8 @@
 -- > DIGIT ::= {0..9}
 -- > 
 -- > REAL ::= DIGIT+{.DIGIT+}?{eDIGIT+}? 
+-- >
+-- > VARIABLE ::= ${0..9A..Za..z}+
 ---------------------------------------------------------------------------
 
 module Grammata.Language.Value
@@ -50,7 +53,7 @@ module Grammata.Language.Value
 )
 where
     
-    import Text.Parsec (many1, try, char, digit, string, parse, lookAhead, anyChar, spaces)
+    import Text.Parsec (many1, try, char, digit, string, parse, lookAhead, anyChar, spaces, letter)
     import Text.Parsec.String (Parser)
 
     import Control.Applicative ((<|>), (<*), (*>), pure, (<$>))
@@ -62,13 +65,15 @@ where
           Natural Integer
         | Real Double
         | Boolean Bool 
+        | Variable String
         deriving (Eq)
 
 
     instance Show Value where
-        show (Natural i) = show i
-        show (Real d)    = show d 
-        show (Boolean b) = if b then "true" else "false" 
+        show (Natural i)  = show i
+        show (Real d)     = show d 
+        show (Boolean b)  = if b then "true" else "false" 
+        show (Variable s) = '$':s
 
     -- | Parses @VALUE@.
     value :: Parser Value
@@ -78,6 +83,7 @@ where
         case la of
             't' -> string "true" >> return (Boolean True)
             'f' -> string "false" >> return (Boolean False)
+            '$' -> char '$' >> Variable <$> many1 (letter <|> digit)
             c   -> do 
                 pre <- many1 digit
                 la <- lookAhead (anyChar <|> pure '#') 

@@ -27,6 +27,19 @@
 
 module Grammata 
 (
-    
+    executeScript
 )
 where
+
+    import Grammata.Language (parseGrammata)
+    import Grammata.Interpreter (compileGrammata)
+    import Grammata.Machine (runProgram)
+
+    executeScript :: () 
+        => String 
+        -> IO ()
+    executeScript script = case parseGrammata script of
+            Left err  -> putStrLn $ "PARSER ERROR " ++ err 
+            Right ast -> case compileGrammata ast of 
+                    Left err  -> putStrLn $ "COMPILER ERROR " ++ err 
+                    Right (subprgs, globs) -> runProgram subprgs globs

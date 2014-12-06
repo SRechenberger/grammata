@@ -189,6 +189,7 @@ where
         -> m ()             -- ^ Reduction action.
     reduceToBasic expr retPt = reduce expr $ \expr' -> do 
         case expr' of 
+            FConst (HeapObj ptr) -> fromHeap ptr $ \lambda -> reduceToBasic lambda retPt
             FConst c -> retPt c 
             others   -> new others >>= retPt . HeapObj
 

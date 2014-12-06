@@ -124,7 +124,7 @@ where
 
         where 
             readTemp tmp var = case var `lookup` tmp of
-                Nothing -> fail $ "ERROR cannot find " ++ var ++ "."
+                Nothing -> fail $ "ERROR cannot find identifier " ++ var ++ "."
                 Just x  -> return x
 
     -- | Evaluates a list of expressions and applies the function of its returning point to the evalated values.

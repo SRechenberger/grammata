@@ -27,8 +27,17 @@
 
 module Grammata.Interpreter
 (
-    module Grammata.Interpreter.Compilation
+    compileGrammata
 )
 where
 
-        import Grammata.Interpreter.Compilation
+        import Grammata.Interpreter.Compilation (compileProgram, Program (..))
+        import Grammata.Interpreter.Compiler (runCompiler)
+
+        import Grammata.Machine 
+
+        compileGrammata :: ()
+            => Program 
+            -> Either String ([(Ident, Subprogram Machine)], [(Ident, CoreExpression Machine)])
+        compileGrammata prg = runCompiler (compileProgram prg) (fst . unzip . globals $ prg) (fst . unzip . subs $ prg)
+

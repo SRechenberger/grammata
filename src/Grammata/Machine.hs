@@ -28,16 +28,16 @@
 module Grammata.Machine
 (
     -- * Grammata Machine
-    Machine, Ident,
+    Machine, Ident, runProgram,
 
     -- * Core subprogram generation.
     imperative, functional, query, base, Subprogram,
     -- ** Imperative core generation.
     iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVar, iVal, iOp, iFunc, CoreStatement, CoreExpression,
     -- ** Functional core generation.
-    fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs,
+    fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, CoreLambda,
     -- ** Logical core generation.
-    lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar,
+    lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
     -- ** Basic value core generation.
     bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural), (=:=), (=/=)
 )

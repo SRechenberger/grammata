@@ -72,7 +72,7 @@ where
 
     -- | AST @EXPRESSION@; parametrized over the constant values.
     data Expression ast = 
-          Const ast         
+          Const ast    
         | BinOp (Expression ast) Op (Expression ast) 
         | UnOp Op (Expression ast)                   
         | Func Op [Expression ast]                  

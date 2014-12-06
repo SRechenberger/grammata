@@ -39,7 +39,7 @@
 module Grammata.Language.Program
 (
     -- * Grammata 
-    Program (..), Returns (..),
+    Program, Returns (..), subs, globals,
     -- * Subprograms
     Subprg (..), 
 
@@ -64,7 +64,7 @@ where
         -- | Function returns nothing. 
         = Void 
         -- | Function returns something.
-        | Val
+        | Something
         deriving (Show, Eq)
 
     -- | AST @SUBPRG@.
@@ -103,7 +103,7 @@ where
                     then pure (name, Procedure Void params decls stmts)
                     else fail $ name ++ " is a function." 
                 "func"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if ret 
-                    then pure (name, Procedure Val params decls stmts)
+                    then pure (name, Procedure Something params decls stmts)
                     else fail $ name ++ " is a procedure."
                 "lambda" -> parseFunctional >>= \(name, params, func) -> pure (name, Lambda params func)
                 "query"  -> parseQuery >>= \(name, params, bases, sought, clause) -> pure (name, Query params bases sought clause) 

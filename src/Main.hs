@@ -31,6 +31,12 @@ module Main
 ) 
 where
 
+    import System.Environment (getArgs)
+    import Grammata (executeScript)
+
     -- | Entry point.
     main :: IO ()
-    main = putStrLn "nana nana nana nana nana nana nana nana... BATMAN!"
+    main = do 
+        arg:_ <- getArgs 
+        script <- readFile arg 
+        executeScript script 
