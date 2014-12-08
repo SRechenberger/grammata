@@ -72,7 +72,7 @@ where
         -> IStorage ident vartype   -- ^ Storage to read.
         -> m vartype                -- ^ Read value.
     readGlob ident storage = case ident `readFrame` global storage of
-        Nothing -> fail $ "ERROR identifier " ++ show ident ++ " not found"
+        Nothing -> fail $ "ERROR STORAGE.IMPERATIVE identifier " ++ show ident ++ " not found"
         Just v  -> return v
 
     -- | Writes a value to the local scope.
@@ -82,7 +82,7 @@ where
         -> IStorage ident vartype       -- ^ Storage to modify.
         -> m (IStorage ident vartype)   -- ^ Modified storage.
     writeLoc ident val storage = let t:ts = locals storage in case writeFrame ident val t of
-        Nothing -> fail $ "ERROR unknown identifier " ++ show ident ++ "."
+        Nothing -> fail $ "ERROR STORAGE.IMPERATIVE unknown identifier " ++ show ident ++ "."
         Just t' -> return storage {locals = t':ts}
 
     -- | Pushes a given frame onto the given storage's locals.
@@ -108,7 +108,7 @@ where
             Just  x -> return storage {locals = x : (tail . locals $ storage)}     
             Nothing -> case writeFrame ident datum (global storage) of
                 Just x  -> return storage {global = x}
-                Nothing -> fail $ "ERROR unknown identifier " ++ show ident 
+                Nothing -> fail $ "ERROR STORAGE.IMPERATIVE unknown identifier " ++ show ident 
 
     -- | Tries to read the value of a given identifier at first from the local top stack frame, then from its global frame. 
     (==>) :: (Show ident, Ord ident, Monad m) 
@@ -116,7 +116,7 @@ where
         -> IStorage ident vartype   -- ^ The storage to read.
         -> m vartype                -- ^ The value of the given identifier.
     ident ==> storage = case local <|> readFrame ident (global storage) of
-        Nothing -> fail $ "ERROR identifier " ++ show ident ++ " unknown"
+        Nothing -> fail $ "ERROR STORAGE.IMPERATIVE identifier " ++ show ident ++ " unknown"
         Just  x -> return x
         where 
             local = if null . locals $ storage

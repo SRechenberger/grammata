@@ -63,5 +63,5 @@ where
     popBacktrackPoint :: (Monad monad) 
         => LStorage state monad                             -- ^ Storage to pop from.
         -> monad (LStorage state monad, (state, monad ()))  -- ^ Pair of the updated storage and the return point.
-    popBacktrackPoint (LStorage []) = fail $ "ERROR no further backtracking points set."
+    popBacktrackPoint (LStorage []) = fail $ "ERROR STORAGE.LOGICAL no further backtracking points set."
     popBacktrackPoint (LStorage (rpt:rpts)) = return (LStorage rpts, rpt)

@@ -45,6 +45,8 @@ module Grammata.Machine.Core
 )
 where   
 
+    import Control.Applicative ((<$>))
+
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
     import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runCoreMethod, evalExpressionlist, CoreImperative (..), CoreMethod (..))
     import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), CoreLambdaMethod (..), runLambda, reduce)
@@ -94,7 +96,7 @@ where
                     Imperative method access -> runCoreMethod method args access retPt
                     Functional lambda        -> runLambda lambda args retPt
                     Logical query            -> askQuery query args retPt
-                    Base _                   -> fail $ "ERROR cannot run logical base " ++ name ++ " as procedure."
+                    Base _                   -> fail $ "ERROR CORE cannot run logical base " ++ name ++ " as procedure."
         setBacktrackPoint btp = do 
             state <- get 
             t <- (return . trail) state >>= pushBacktrackPoint ((stack state, heap state), btp) 
@@ -122,7 +124,7 @@ where
         writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
     
     instance CoreFunctional (Grammateion Dict Storage) where
-        new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> return p
+        new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> (liftIO . print) h >> return p
         alloc = get >>= \state -> (return . heap) state >>= Heap.alloc >>= \(p,h) -> put state {heap = h} >> return p
         rewrite ptr expr = get >>= \state -> (return . heap) state >>= update ptr expr >>= \h -> put state {heap = h}
         fromHeap ptr retPt = do
@@ -140,10 +142,10 @@ where
 
     instance CoreLogical (Grammateion Dict Storage) where
         getBase name = ask >>= \(Dict dict) -> case name `lookup` dict of
-            Nothing -> fail $ "ERROR there is no function " ++ name ++ "."
+            Nothing -> fail $ "ERROR CORE there is no function " ++ name ++ "."
             Just f  -> case f of 
                 Base b -> return b
-                _      -> fail $ "ERROR " ++ name ++ " is no knowledge base."
+                _      -> fail $ "ERROR CORE " ++ name ++ " is no knowledge base."
 
     -- | Running a program given as a list of identifier method pairs, where one must be declared as @main@, and a set of global variables.
     runProgram :: () 
@@ -153,8 +155,8 @@ where
     runProgram dict globals = do 
         result <- runGrammateion program (Dict dict) (Storage newIStorage newFStorage newLStorage) 
         case result of 
-            Left err -> putStrLn $ '\n':err
-            Right (e,s)  -> putStrLn "\nOK." 
+            Left err -> putStrLn err
+            Right (e,s)  -> putStrLn "OK." 
         where 
             program :: Grammateion Dict Storage ()
             program = do 
@@ -166,11 +168,11 @@ where
                     put state {stack = s'}
                     flip (callProcedure "main") [] $ \bsc -> do 
                         liftIO . putStrLn $ show bsc ++ " ?"
-                        c <- liftIO getChar
-                        liftIO . putStrLn $ ""
+                        c <- liftIO getLine
                         case c of 
-                            'y' -> return ()
-                            _   -> trackback
+                            "yes" -> return ()
+                            "no"  -> trackback
+                            _     -> trackback
 
 
 

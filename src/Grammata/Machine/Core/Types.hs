@@ -75,6 +75,7 @@ where
         complex <- and <$> mapM (\(a,b) -> a =:= b) (asa `zip` asb)
         return $ simple && complex
     HeapObj a =:= HeapObj b = return $ a == b 
+    _ =:= _ = return False
 
     a =/= b = not <$> a =:= b 
 
@@ -85,11 +86,11 @@ where
         => Basic 
         -> m Bool 
     toBoolean (Boolean b) = return b 
-    toBoolean others      = fail $ "ERROR " ++ show others ++ " is no boolean."
+    toBoolean others      = fail $ "ERROR CORE.TYPES " ++ show others ++ " is no boolean."
 
     -- | Returns the integer held by a given basic; if no integer is held, it fails.
     toInteger :: (Monad m)
         => Basic 
         -> m Integer 
     toInteger (Natural i) = return i 
-    toInteger others      = fail $ "ERROR " ++ show others ++ " is no integer." 
+    toInteger others      = fail $ "ERROR CORE.TYPES " ++ show others ++ " is no integer." 

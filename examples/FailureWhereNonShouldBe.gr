@@ -1,0 +1,13 @@
+program FailureWhereNonShouldBe
+    with
+    begin
+        lambda main() is
+            let
+                $fak := \$n . if $n <= 1 
+                    then 1 
+                    else $n * ($fak ($n - 1))
+                    end;
+            in $fak 5
+            end
+        end
+    end

@@ -37,6 +37,8 @@ module Grammata.Machine.Core.Functional
 )
 where 
 
+    import Debug.Trace
+
     import Prelude hiding (toInteger)
 
     import Grammata.Machine.Core.Types (Basic (..), toBoolean, toInteger)
@@ -69,8 +71,8 @@ where
 
 
     instance Show (CoreLambda m) where
-        show (FVar ident) = ident 
-        show (FConst bsc) = show bsc 
+        show (FVar ident) = "var(" ++ ident ++ ")"
+        show (FConst bsc) = "basic(" ++ show bsc ++ ")" 
         show (FIf ec et ee) = "(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
         show (FOp _ args) = "(f " ++ unwords (map show args) ++ ")"
         show (FCall i args) = "(" ++ i ++ " " ++ unwords (map show args) ++ ")"
@@ -102,8 +104,8 @@ where
     isRedex (FConst c)          = case c of 
         HeapObj _ -> return True
         _         -> return False
-    isRedex (FIf c _ _)         = isRedex c 
-    isRedex (FOp _ as)          = mapM isRedex as >>= return . and
+    isRedex (FIf c _ _)         = return True 
+    isRedex (FOp _ as)          = return True -- mapM isRedex as >>= return . and
     isRedex (FCall _ as)        = mapM isRedex as >>= return . and
     isRedex (FLet _ _)          = return True 
     isRedex (FAbs _ _)          = return False
@@ -152,12 +154,12 @@ where
         => CoreLambda m     -- ^ Expression to reduce.
         -> (CoreLambda m -> m ())  -- ^ Returning Point.
         -> m ()             -- ^ Evaluation action.
-    step expr retPt = case expr of
+    step expr retPt = trace ("!> expr = " ++ show expr) $ case expr of
         FVar i -> 
             loadFree i >>= retPt . FConst
 
         FConst (HeapObj ptr) -> 
-            fromHeap ptr (\heapObj -> reduce heapObj retPt)
+            fromHeap ptr (\heapObj -> trace ("!> heapObj = "++show heapObj) $ reduce heapObj retPt)
 
         FIf c e1 e2 -> 
             reduceToBasic c $ \basic -> do 
@@ -165,7 +167,7 @@ where
                 reduce (if cond then e1 else e2) retPt
 
         FOp op as -> 
-            reduceList as [] (\bscs -> op bscs >>= retPt . FConst)
+            reduceList as [] (\bscs -> trace ("!> bscs = " ++ show bscs) $ op bscs >>= retPt . FConst)
 
         FCall id as -> 
             reduceList as [] (callProcedure id $ retPt . FConst)
@@ -178,7 +180,7 @@ where
 
         FApp f args -> case args of 
             []   -> reduce f retPt
-            args -> bind f args (\expr -> reduce expr retPt)
+            args -> bind f args (\expr -> trace ("FAPP> expr = " ++ show expr) $ reduce expr retPt)
 
     {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
         @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.
@@ -222,7 +224,7 @@ where
         -> [Basic]              -- ^ Arguments.
         -> (Basic -> m ())      -- ^ Returning point.
         -> m ()                 -- ^ Program action.
-    runLambda (CLM lambda params) args retPt= do 
+    runLambda (CLM lambda params) args retPt = do 
         enter (params `zip` args)
         reduceToBasic lambda $ \bsc -> do
             leave

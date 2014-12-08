@@ -1,13 +1,16 @@
 program ParserExample 
     with
     begin
-        lambda main() is
-            let 
-                $fib := \$n.if $n <= 1 
-                    then 1 
-                    else $fib ($n-1) + $fib ($n-2) 
-                    end; 
-            in $fib 5 
-            end
+
+        lambda fak(n) is
+            if $n <= 1 then 1 else $fak($n-1) end
         end
+
+        base nums says
+            p(fak(5)).
+            p(125).
+            p(88).
+        end
+
+        query main() asks nums for X ?- p(X) end
     end

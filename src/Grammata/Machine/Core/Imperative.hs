@@ -43,6 +43,8 @@ module Grammata.Machine.Core.Imperative
 )
 where 
 
+    import Debug.Trace
+
     import Prelude hiding (toInteger)
     
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
@@ -83,7 +85,14 @@ where
         -- | <IDENT> (<EXPR>*)
         | IFunc Ident [CoreExpression m]
 
-
+    instance Show (CoreStatement m) where
+        show (_ := _) = " := "
+        show (IIf _ c1 c2) = " if cond then " ++ (concat $ map show c1) ++ " else " ++ (concat $ map show c1) ++ " end "
+        show (IWhile _ c) = " while cond do " ++ (concat $ map show c) ++ " end "
+        show (IReturn _) = " return "
+        show (ICall _ _) = " call " 
+        show (ITrackBack) = " trackback " 
+        
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
         -- | Reading from the stack.
@@ -124,7 +133,7 @@ where
 
         where 
             readTemp tmp var = case var `lookup` tmp of
-                Nothing -> fail $ "ERROR cannot find identifier " ++ var ++ "."
+                Nothing -> fail $ "ERROR CORE.IMPERATIVE cannot find identifier " ++ var ++ " in " ++ show (fst . unzip $ tmp) ++ "."
                 Just x  -> return x
 
     -- | Evaluates a list of expressions and applies the function of its returning point to the evalated values.
@@ -145,14 +154,14 @@ where
         -> Bool              -- ^ True, if write access to global variables is granted; false otherwise.
         -> (Basic -> m ())   -- ^ Return point.
         -> m ()              -- ^ Execution action.
-    runImperative []        _      _     = fail "ERROR unexpected end of program."
+    runImperative []        _      _     = fail "ERROR CORE.IMPERATIVE unexpected end of program."
     runImperative (s:stmts) access retPt = case s of 
         ident := expr -> 
             evalExpression [] (\bsc -> (if access then writeStack ident bsc else writeLocals ident bsc) >> runImperative stmts access retPt) expr 
         IIf cond thenBlock elseBlock -> 
             evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) access retPt) cond
         IWhile cond block ->
-            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block else []) ++ stmts) access retPt) cond
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block ++ [s] else []) ++ stmts) access retPt) cond
         IReturn expr -> 
             evalExpression [] (\bsc -> retPt bsc) expr
         ICall name exprs -> 
@@ -184,7 +193,7 @@ where
         cond <- getReturnValue
         case cond of
             Boolean b -> return b
-            others    -> fail $ "ERROR " ++ show others ++ " is no boolean."
+            others    -> fail $ "ERROR CORE.IMPERATIVE " ++ show others ++ " is no boolean."
 
     -- | Evaluates a expression and extracts an integer.
     evalToInteger :: CoreImperative m 
@@ -195,7 +204,7 @@ where
         val <- getReturnValue
         case val of
             Natural b -> return b
-            others    -> fail $ "ERROR " ++ show others ++ " is no natural."
+            others    -> fail $ "ERROR CORE.IMPERATIVE " ++ show others ++ " is no natural."
 
     -- | Runs a method as a function taking its arguments and returing a result.
     runFunction :: CoreImperative m 
@@ -212,7 +221,7 @@ where
             leave
             return toReturn
         where 
-            run [] = fail "ERROR no return"
+            run [] = fail "ERROR CORE.IMPERATIVE no return"
             run (stmt:stmts) = case stmt of
                 ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeStack ident basic >> run stmts)
                 IIf cond b1 b2 -> do
@@ -252,7 +261,7 @@ where
                     n <- evalToInteger e 
                     case n of 
                         0 -> return ()
-                        _ -> fail $ "ERROR exit code " ++ show n ++ "."
+                        _ -> fail $ "ERROR CORE.IMPERATIVE exit code " ++ show n ++ "."
                 ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
                 TrackBack -> trackBack 
 

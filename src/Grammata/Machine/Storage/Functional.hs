@@ -39,7 +39,7 @@ module Grammata.Machine.Storage.Functional
 where
 
     import Prelude hiding (lookup)
-    import Data.Map (Map, insert, adjust, lookup, empty, member)
+    import Data.Map (Map, insert, adjust, lookup, empty, member, toList)
 
     data Object value = 
           Empty
@@ -53,7 +53,10 @@ where
     data FStorage value = FStorage {
             next :: Pointer,                    -- ^ Next free address.
             heap :: Map Pointer (Object value)  -- ^ Heap holding deposed heap objects.
-        } deriving (Show)
+        } deriving ()
+
+    instance Show value => Show (FStorage value) where
+        show (FStorage next heap) = "## EMPTY HEAP\n" ++ concat (map (\x -> "# " ++ show x ++ "\n") $ toList heap) ++ "# NEXT CELL " ++ show next ++ "\n"
 
     -- | An empty storage.
     newFStorage :: () 
@@ -88,7 +91,7 @@ where
         h = heap storage 
         in if ptr `member` h 
             then return storage {heap = adjust (const . Basic $ val) ptr h}
-            else fail $ "ERROR null pointer " ++ show ptr
+            else fail $ "ERROR STORAGE.FUNCTIONAL null pointer " ++ show ptr 
 
     -- | Loads a value from the heap, and evaluates it with a given function, if it is a closure.
     load :: (Monad m)
@@ -96,9 +99,9 @@ where
         -> FStorage value
         -> m (value, Bool)
     load ptr storage = let h = heap storage in case ptr `lookup` h of
-        Nothing -> fail $ "ERROR " ++ show ptr ++ " does not point on a heap cell."
+        Nothing -> fail $ "ERROR STORAGE.FUNCTIONAL " ++ show ptr ++ " does not point on a heap cell."
         Just b  -> case b of 
-            Empty -> fail $ "ERROR cell at " ++ show ptr ++ " is empty."
+            Empty -> fail $ "ERROR STORAGE.FUNCTIONAL cell at " ++ show ptr ++ " is empty."
             Basic lambda -> return (lambda, True)
             Closure lambda -> return (lambda, False)
                 

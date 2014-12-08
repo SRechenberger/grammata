@@ -31,6 +31,8 @@ module Grammata
 )
 where
 
+    import Debug.Trace 
+
     import Grammata.Language (parseGrammata)
     import Grammata.Interpreter (compileGrammata)
     import Grammata.Machine (runProgram)
