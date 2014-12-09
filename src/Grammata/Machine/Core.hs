@@ -103,9 +103,12 @@ where
             put state {trail = t}
         trackback = do 
             state <- get 
-            (t, ((s,h),btp)) <- popBacktrackPoint . trail $ state
-            put state {stack = s, heap = h, trail = t}
-            btp
+            returns <- popBacktrackPoint . trail $ state
+            case returns of
+                Nothing -> return ()
+                Just (t, ((s,h),btp)) -> do
+                    put state {stack = s, heap = h, trail = t}
+                    btp
         getSymbol ident = do
             state <- get
             (return . stack) state >>= (ident ==>)
@@ -124,7 +127,7 @@ where
         writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
     
     instance CoreFunctional (Grammateion Dict Storage) where
-        new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> (liftIO . print) h >> return p
+        new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> return p
         alloc = get >>= \state -> (return . heap) state >>= Heap.alloc >>= \(p,h) -> put state {heap = h} >> return p
         rewrite ptr expr = get >>= \state -> (return . heap) state >>= update ptr expr >>= \h -> put state {heap = h}
         fromHeap ptr retPt = do

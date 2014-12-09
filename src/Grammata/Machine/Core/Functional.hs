@@ -37,7 +37,7 @@ module Grammata.Machine.Core.Functional
 )
 where 
 
-    import Debug.Trace
+    -- import Debug.Trace
 
     import Prelude hiding (toInteger)
 
@@ -154,12 +154,12 @@ where
         => CoreLambda m     -- ^ Expression to reduce.
         -> (CoreLambda m -> m ())  -- ^ Returning Point.
         -> m ()             -- ^ Evaluation action.
-    step expr retPt = trace ("!> expr = " ++ show expr) $ case expr of
+    step expr retPt = case expr of
         FVar i -> 
             loadFree i >>= retPt . FConst
 
         FConst (HeapObj ptr) -> 
-            fromHeap ptr (\heapObj -> trace ("!> heapObj = "++show heapObj) $ reduce heapObj retPt)
+            fromHeap ptr (\heapObj -> reduce heapObj retPt)
 
         FIf c e1 e2 -> 
             reduceToBasic c $ \basic -> do 
@@ -167,7 +167,7 @@ where
                 reduce (if cond then e1 else e2) retPt
 
         FOp op as -> 
-            reduceList as [] (\bscs -> trace ("!> bscs = " ++ show bscs) $ op bscs >>= retPt . FConst)
+            reduceList as [] (\bscs -> op bscs >>= retPt . FConst)
 
         FCall id as -> 
             reduceList as [] (callProcedure id $ retPt . FConst)
@@ -180,7 +180,7 @@ where
 
         FApp f args -> case args of 
             []   -> reduce f retPt
-            args -> bind f args (\expr -> trace ("FAPP> expr = " ++ show expr) $ reduce expr retPt)
+            args -> bind f args (\expr -> reduce expr retPt)
 
     {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
         @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.

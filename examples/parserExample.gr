@@ -2,14 +2,13 @@ program ParserExample
     with
     begin
 
-        lambda fak(n) is
-            if $n <= 1 then 1 else $fak($n-1) end
+        lambda add(n) is
+            $n + 1
         end
 
         base nums says
-            p(fak(5)).
-            p(125).
-            p(88).
+            p(add(5)).
+            p(5).
         end
 
         query main() asks nums for X ?- p(X) end

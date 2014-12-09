@@ -37,6 +37,9 @@ where
     -- | Entry point.
     main :: IO ()
     main = do 
-        arg:_ <- getArgs 
-        script <- readFile arg 
+        args <- getArgs 
+    --    file <- case args of 
+    --    	[] -> getLine
+    --    	a:_ -> return a
+        script <- readFile "../examples/FailureWhereNonShouldBe.gr"
         executeScript script 

@@ -1,13 +1,28 @@
 program FailureWhereNonShouldBe
     with
     begin
-        lambda main() is
+        lambda fak(n) is
             let
                 $fak := \$n . if $n <= 1 
                     then 1 
                     else $n * ($fak ($n - 1))
                     end;
-            in $fak 5
+            in $fak $n
+            end
+        end
+
+        base numbers says
+            p(7).
+            p(6).
+        end
+
+        query blub() asks numbers for X ?- p(X) end
+
+        func main() 
+            with 
+                var p := blub();
+            does
+                return fak($p);
             end
         end
     end

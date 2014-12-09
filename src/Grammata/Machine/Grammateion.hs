@@ -43,7 +43,7 @@ module Grammata.Machine.Grammateion
 )
 where   
 
-   
+    import Debug.Trace
     import Data.Map (Map)
 
     import Control.Applicative (Applicative (..), Alternative (..))
@@ -64,7 +64,7 @@ where
 
     instance Monad (Grammateion d s) where
         return x = Grammateion $ \d s -> return $ Right (x, s)
-        fail msg = Grammateion $ \_ _ -> return $ Left msg
+        fail msg = Grammateion $ \_ _ -> trace msg return $ Left msg
         grF >>= g = Grammateion $ \d s -> runGrammateion grF d s >>= \comp -> case comp of
             Left msg      -> return $ Left msg
             Right (a, s') -> runGrammateion (g a) d s' 

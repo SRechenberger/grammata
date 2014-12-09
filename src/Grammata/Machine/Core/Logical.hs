@@ -192,12 +192,12 @@ where
         => CoreTerm         -- ^ Term to convert.
         -> (Basic -> m ())  -- ^ Returing point.
         -> m ()             -- ^ Remaining program action.
-    termToBasic term retPt = trace (">> " ++ show term) $ case term of 
+    termToBasic term retPt = case term of 
         Atom b -> retPt b 
         Var v  -> fail $ "ERROR CORE.LOGICAL " ++ show v ++ " is unbound."
         LFun n i as 
             | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
-            | otherwise -> termToBasicList as [] $ \bscs -> trace (show bscs) $ (trace "LEFT" callProcedure n retPt bscs) <|> (trace "RIGHT" retPt (Struct n i bscs))
+            | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) <|> (retPt (Struct n i bscs))
 
 
     -- | Converts a list of terms to basic values.
@@ -329,7 +329,7 @@ where
             Nothing -> search clauses allBases mempty $ \(success, _) -> retPt (Boolean success)
             Just x  -> search clauses allBases mempty $ \(success, subst) -> if success
                 then do 
-                    termToBasic (trace (show $ subst `apply` (lVar x)) $ subst `apply` (lVar x)) $ \basic -> do 
+                    termToBasic (subst `apply` (lVar x)) $ \basic -> do 
                         leave 
                         retPt basic
                 else trackback
