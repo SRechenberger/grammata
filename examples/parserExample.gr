@@ -1,15 +1,20 @@
 program ParserExample 
-    with
-    begin
-
-        lambda add(n) is
-            $n + 1
-        end
-
-        base nums says
-            p(add(5)).
-            p(5).
-        end
-
-        query main() asks nums for X ?- p(X) end
+with
+    var s := dec(dec(2));
+    var i;
+begin
+    query nums() for X ?- 
+        X :=: 1; 
+        X :=: 2; 
+        X :=: s 
     end
+
+    func main() 
+    with
+        var x := 0;
+    does
+        for i from 0 to nums do
+            x := $x + 1;
+        end
+    end
+end

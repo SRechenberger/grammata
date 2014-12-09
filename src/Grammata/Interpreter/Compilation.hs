@@ -120,6 +120,10 @@ where
     compileGoal :: ()
         => Goal 
         -> COMPILER CoreGoal
+    compileGoal (t1 :=: t2) = do 
+        t1' <- compileTerm t1
+        t2' <- compileTerm t2 
+        return $ lUnify t1' t2'
     compileGoal (Predicate name terms) = do 
         terms' <- mapM compileTerm terms
         return $ lPred name terms'

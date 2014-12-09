@@ -197,7 +197,7 @@ where
         Var v  -> fail $ "ERROR CORE.LOGICAL " ++ show v ++ " is unbound."
         LFun n i as 
             | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
-            | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) <|> (retPt (Struct n i bscs))
+            | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
 
 
     -- | Converts a list of terms to basic values.
@@ -259,7 +259,7 @@ where
     unifyList [] [] s = Just s 
     unifyList (a:as) (b:bs) s = case a `unify` b of
         Nothing -> Nothing
-        Just s' -> unifyList as bs (s <> s')
+        Just s' -> unifyList as bs (s' <> s)
 
 
     -- | Tries to match two predicates, returning a substitution, if there is one.
@@ -288,20 +288,20 @@ where
         -> ((Bool, Subst) -> m ())  -- ^ Returning point.
         -> m ()                     -- ^ Remaining program action.
     search []     _    s retPt = retPt (True, s)
-    search (g:gs) base s retPt = case g of
-        LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base retPt
+    search (g:gs) base s retPt = let base' = map nextNames base in case g of
+        LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base' retPt
         LNot cs -> do
-            search cs base s $ \(success, _) -> if success 
+            search cs base' s $ \(success, _) -> if success 
                 then trackback
                 else search gs base s retPt
         LGoal g -> case g of
             t1 :=: t2 -> case t1 `unify` t2 of
                 Nothing -> trackback
-                Just s' -> let ss = s <> s' in search (map (ss ~~>) gs) base ss retPt
+                Just s' -> let ss = s <> s' in search (map (ss ~~>) gs) base' ss retPt
             predicate -> let 
-                matches = [match | Just match <- map (matchWithRule predicate) base]
+                matches = [match | Just match <- map (matchWithRule predicate) base']
                 candidates = map (\(s',cs) -> (s <> s', map (s' ~~>) (cs ++ gs))) matches
-                in searchList candidates base retPt
+                in searchList candidates base' retPt
 
 
     -- | Searches for a substitution via SLD resolutions given a list of pairs of substitution and clauses, on which the substitution is applied to,

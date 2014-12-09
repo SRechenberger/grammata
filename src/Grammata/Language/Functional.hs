@@ -197,7 +197,7 @@ where
                 "true" -> token "true" >> pure (Value . Boolean $ True)
                 "false"-> token "false" >> pure (Value . Boolean $ False)
                 [c] | isDigit c -> Value <$> value 
-                    | isLower c -> Value <$> value 
+                    | isLower c -> Arith <$> func 
                     | otherwise -> fail $ "Unexpected " ++ show c ++ "." 
 
             func :: Parser (Expression Lambda)

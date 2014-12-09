@@ -64,7 +64,7 @@ where
 
     instance Monad (Grammateion d s) where
         return x = Grammateion $ \d s -> return $ Right (x, s)
-        fail msg = Grammateion $ \_ _ -> trace msg return $ Left msg
+        fail msg = Grammateion $ \_ _ -> return $ Left msg
         grF >>= g = Grammateion $ \d s -> runGrammateion grF d s >>= \comp -> case comp of
             Left msg      -> return $ Left msg
             Right (a, s') -> runGrammateion (g a) d s' 
@@ -82,7 +82,7 @@ where
             b <- runGrammateion grB d s 
             return $ case (a, b) of
                 (Left m, Left _)   -> Left m
-                (Left _, Right p2) -> Right p2
+                (Left m, Right p2) -> Right p2
                 (Right p1, _)      -> Right p1 
 
     instance MonadState s (Grammateion d s) where

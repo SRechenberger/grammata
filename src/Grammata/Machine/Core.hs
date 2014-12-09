@@ -45,6 +45,8 @@ module Grammata.Machine.Core
 )
 where   
 
+    import Debug.Trace
+
     import Control.Applicative ((<$>))
 
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
@@ -105,7 +107,7 @@ where
             state <- get 
             returns <- popBacktrackPoint . trail $ state
             case returns of
-                Nothing -> return ()
+                Nothing -> return (trace "()" ())
                 Just (t, ((s,h),btp)) -> do
                     put state {stack = s, heap = h, trail = t}
                     btp

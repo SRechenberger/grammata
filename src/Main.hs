@@ -38,8 +38,8 @@ where
     main :: IO ()
     main = do 
         args <- getArgs 
-    --    file <- case args of 
-    --    	[] -> getLine
-    --    	a:_ -> return a
-        script <- readFile "../examples/FailureWhereNonShouldBe.gr"
+        file <- case args of 
+        	[] -> getLine
+        	a:_ -> return a
+        script <- readFile file
         executeScript script 
