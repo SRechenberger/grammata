@@ -86,12 +86,12 @@ where
         | IFunc Ident [CoreExpression m]
 
     instance Show (CoreStatement m) where
-        show (_ := _) = " := "
-        show (IIf _ c1 c2) = " if cond then " ++ (concat $ map show c1) ++ " else " ++ (concat $ map show c1) ++ " end "
-        show (IWhile _ c) = " while cond do " ++ (concat $ map show c) ++ " end "
-        show (IReturn _) = " return "
-        show (ICall _ _) = " call " 
-        show (ITrackBack) = " trackback " 
+        show (_ := _) = "assingment"
+        show (IIf _ c1 c2) = "if"
+        show (IWhile _ c) = "while"
+        show (IReturn _) = "return"
+        show (ICall _ _) = "call" 
+        show (ITrackBack) = "trackback" 
         
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
@@ -163,9 +163,10 @@ where
         IWhile cond block ->
             evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block ++ [s] else []) ++ stmts) access retPt) cond
         IReturn expr -> 
-            evalExpression [] (\bsc -> retPt bsc) expr
+            evalExpression [] retPt expr
         ICall name exprs -> 
-            evalExpressionlist [] exprs [] (callProcedure name retPt)
+            evalExpressionlist [] exprs [] $ callProcedure name $ \_ -> 
+                runImperative stmts access retPt
         ITrackBack -> 
             trackback
 

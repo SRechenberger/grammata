@@ -189,6 +189,7 @@ where
     compileImperativeStatement (ident := expr) = do 
         expr' <- compileImperativeExpression expr 
         return [iAssignment ident expr']
+        
     compileImperativeStatement (For cnt init limit step stmts) = do 
         init' <- case init of
             Nothing -> return []
@@ -201,26 +202,33 @@ where
             in compileImperativeStatement (cnt := BinOp (Const $ Variable cnt) "+" stepWidth)
         cond <- compileImperativeExpression (BinOp (Const $ Variable cnt) "<=" limit)
         return $ init' ++ [iWhile cond (stmts' ++ step')] 
+        
     compileImperativeStatement (DoWhile stmts cond) = do 
         stmts' <- concat <$> mapM compileImperativeStatement stmts
         cond' <- compileImperativeExpression cond 
         return $ stmts' ++ [iWhile cond' stmts']
+        
     compileImperativeStatement (While cond stmts) = do
         cond' <- compileImperativeExpression cond 
         stmts' <- concat <$> mapM compileImperativeStatement stmts
         return [iWhile cond' stmts']
+        
     compileImperativeStatement (If cond thenBlock elseBlock) = do 
         cond' <- compileImperativeExpression cond 
         thenBlock' <- concat <$> mapM compileImperativeStatement thenBlock
         elseBlock' <- concat <$> mapM compileImperativeStatement elseBlock
         return [iIf cond' thenBlock' elseBlock']
+        
     compileImperativeStatement (Call ident exprs) = do 
         exprs' <- mapM compileImperativeExpression exprs 
         return [iCall ident exprs'] 
+        
     compileImperativeStatement (Return expr) = do 
         expr' <- compileImperativeExpression expr 
         return [iReturn expr']
+        
     compileImperativeStatement Exit = return [iReturn (iVal bNull)]
+    
     compileImperativeStatement Backtrack = return [iTrackBack]
 
 

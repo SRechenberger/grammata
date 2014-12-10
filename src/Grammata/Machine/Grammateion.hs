@@ -81,7 +81,7 @@ where
             a <- runGrammateion grA d s 
             b <- runGrammateion grB d s 
             return $ case (a, b) of
-                (Left m, Left _)   -> Left m
+                (Left _, Left m2)  -> Left (m2)
                 (Left m, Right p2) -> Right p2
                 (Right p1, _)      -> Right p1 
 

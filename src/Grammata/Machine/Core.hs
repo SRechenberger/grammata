@@ -80,7 +80,8 @@ where
 
     type Stack = IStorage Ident Basic
     type Heap = FStorage (CoreLambda Machine)
-    type Trail = LStorage (Stack, Heap) Machine
+    type Trail = LStorage BacktrackPoint Machine
+    type BacktrackPoint = (Stack,Heap)
 
     -- | Storage holding a stack and a heap.
     data Storage = Storage { stack :: Stack, heap :: Heap, trail :: Trail }
@@ -102,6 +103,7 @@ where
         setBacktrackPoint btp = do 
             state <- get 
             t <- (return . trail) state >>= pushBacktrackPoint ((stack state, heap state), btp) 
+        --    liftIO . putStrLn $ "PUSH BTP " ++ show t
             put state {trail = t}
         trackback = do 
             state <- get 
@@ -109,6 +111,7 @@ where
             case returns of
                 Nothing -> return (trace "()" ())
                 Just (t, ((s,h),btp)) -> do
+        --            liftIO . putStrLn $ "POP BTP " ++ show t
                     put state {stack = s, heap = h, trail = t}
                     btp
         getSymbol ident = do

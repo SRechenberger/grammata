@@ -1,20 +1,22 @@
 program ParserExample 
 with
-    var s := dec(dec(2));
-    var i;
+    var s := nums;
+    var i := 0;
 begin
     query nums() for X ?- 
         X :=: 1; 
-        X :=: 2; 
-        X :=: s 
+        X :=: 2;
+        X :=: 3;
+        X :=: 4
     end
 
     func main() 
     with
         var x := 0;
     does
-        for i from 0 to nums do
+        while $x <= $s do
             x := $x + 1;
         end
+        return $x;
     end
 end
