@@ -83,7 +83,6 @@ where
         return sprgs'
 
 
-
     compileSubprogram :: ()
         => Subprg
         -> COMPILER (Subprogram Machine)
@@ -94,7 +93,7 @@ where
                 e' <- compileImperativeExpression e 
                 return (ident, e')
         stmts' <- concat <$> mapM compileImperativeStatement stmts
-        return $ imperative locals' params stmts' (ret == Something) 
+        return $ imperative locals' params stmts' (ret /= Something) 
     compileSubprogram (Lambda params lambda) = do
         lambda' <- compileLambda lambda 
         return $ functional lambda' params
@@ -230,7 +229,6 @@ where
     compileImperativeStatement Exit = return [iReturn (iVal bNull)]
     
     compileImperativeStatement Backtrack = return [iTrackBack]
-
 
     
     compileGlobals :: ()

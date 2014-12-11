@@ -1,4 +1,4 @@
-program FailureWhereNonShouldBe
+program FailureWhereNoneShouldBe
     with
     begin
         lambda fak(n) is
@@ -12,8 +12,8 @@ program FailureWhereNonShouldBe
         end
 
         base numbers says
-            p(7).
-            p(6).
+            p(fak(5)).
+            p(5).
         end
 
         query blub() asks numbers for X ?- p(X) end
@@ -22,7 +22,7 @@ program FailureWhereNonShouldBe
             with 
                 var p := blub();
             does
-                return fak($p);
+                return $p;
             end
         end
     end

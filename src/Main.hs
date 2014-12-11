@@ -31,6 +31,8 @@ module Main
 ) 
 where
 
+    import System.IO
+
     import System.Environment (getArgs)
     import Grammata (executeScript)
 
@@ -41,5 +43,6 @@ where
         file <- case args of 
         	[] -> getLine
         	a:_ -> return a
-        script <- readFile file
+        script <- readFile "../examples/map.gr"
+        hSetBuffering stdin NoBuffering
         executeScript script 

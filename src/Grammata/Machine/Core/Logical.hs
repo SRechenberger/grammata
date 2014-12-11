@@ -183,6 +183,7 @@ where
     basicToTerm :: () 
         => Basic    -- ^ Basic value to convert.
         -> CoreTerm -- ^ Generated term.
+    basicToTerm (Struct ('#':v) 0 []) = lVar v
     basicToTerm (Struct n i as) = LFun n i (map basicToTerm as)
     basicToTerm b = Atom b
 
@@ -194,7 +195,7 @@ where
         -> m ()             -- ^ Remaining program action.
     termToBasic term retPt = case term of 
         Atom b -> retPt b 
-        Var v  -> fail $ "ERROR CORE.LOGICAL " ++ show v ++ " is unbound."
+        Var (v :$ _)  -> retPt $ Struct ('#':v) 0 []
         LFun n i as 
             | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
             | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
@@ -243,7 +244,7 @@ where
     unify (Atom c1) (Var  v2)              = Just . newSubst v2 . Atom $ c1
     unify (Atom c1) (LFun _ _ _)           = Nothing
     unify (Var  v1) (Atom c2)              = Just . newSubst v1 . Atom $ c2
-    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v1 (Var v2)
+    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v2 (Var v1)
     unify (Var  v1) s                      = if v1 `occursIn` s then Nothing else Just $ newSubst v1 s
     unify (LFun _ _ _) (Atom _)            = Nothing
     unify s@(LFun _ _ _) (Var v2)          = if v2 `occursIn` s then Nothing else Just $ newSubst v2 s
@@ -268,7 +269,7 @@ where
         -> CoreGoal     -- ^ Predicate b.
         -> Maybe Subst  -- ^ Maybe a substitution, unifying a and b.
     match p1@(LPred name arity terms) p2@(LPred name' arity' terms') = if name == name' && arity == arity' 
-        then unifyList terms terms' mempty
+        then unifyList terms terms' mempty 
         else Nothing
     match _ _ = Nothing
 
@@ -277,7 +278,7 @@ where
         => CoreGoal                    -- ^ Goal to match with...
         -> CoreRule                    -- ^ this rule.
         -> Maybe (Subst, [CoreClause]) -- ^ Maybe the MGU and the body of the given rule.
-    matchWithRule pred (pred' :- clauses) = fmap (flip (,) clauses) $ pred `match` pred'
+    matchWithRule pred r@(pred' :- clauses) = fmap (flip (,) clauses) $ pred `match` pred'
 
 
     -- | Searches for substitutions via SLD resolution given a list of clauses, a list of rules and an initial substitution.
@@ -288,16 +289,17 @@ where
         -> ((Bool, Subst) -> m ())  -- ^ Returning point.
         -> m ()                     -- ^ Remaining program action.
     search []     _    s retPt = retPt (True, s)
-    search (g:gs) base s retPt = let base' = map nextNames base in case g of
+    search (g:gs) base s retPt = trace (show $ g:gs) $ let base' = map nextNames base in case g of
         LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base' retPt
         LNot cs -> do
             search cs base' s $ \(success, _) -> if success 
                 then trackback
                 else search gs base s retPt
         LGoal g -> case g of
-            t1 :=: t2 -> case t1 `unify` t2 of
-                Nothing -> trackback
-                Just s' -> let ss = s <> s' in search (map (ss ~~>) gs) base' ss retPt
+            t1 :=: t2 -> do
+                case t1 `unify` t2 of
+                    Nothing -> trackback
+                    Just s' -> let ss = s <> s' in search (map (ss ~~>) gs) base' ss retPt
             predicate -> let 
                 matches = [match | Just match <- map (matchWithRule predicate) base']
                 candidates = map (\(s',cs) -> (s <> s', map (s' ~~>) (cs ++ gs))) matches
@@ -325,15 +327,46 @@ where
     askQuery (Query params sought bases clauses) args retPt = let p_as = params `zip` args in do 
         enter p_as
         allBases <- prepareBase . concat <$> mapM getBase bases 
+        clauses' <- prepareClauses clauses
+        trace (show clauses') return ()
         case sought of 
-            Nothing -> search clauses allBases mempty $ \(success, _) -> retPt (Boolean success)
-            Just x  -> search clauses allBases mempty $ \(success, subst) -> if success
+            Nothing -> search clauses' allBases mempty $ \(success, _) -> retPt (Boolean success)
+            Just x  -> search clauses' allBases mempty $ \(success, subst) -> if success
                 then do 
                     termToBasic (subst `apply` (lVar x)) $ \basic -> do 
                         leave 
                         retPt basic
                 else trackback
 
+
+    prepareClauses :: (CoreLogical m)
+        => [CoreClause]
+        -> m [CoreClause]
+    prepareClauses = mapM prepareClause
+
+    prepareClause :: (CoreLogical m)
+        => CoreClause
+        -> m CoreClause
+    prepareClause (LNot cs) = LNot <$> mapM prepareClause cs 
+    prepareClause (LOr css) = LOr <$> mapM prepareClauses css 
+    prepareClause (LGoal g) = LGoal <$> prepareGoal g 
+
+    prepareGoal :: (CoreLogical m)
+        => CoreGoal 
+        -> m CoreGoal 
+    prepareGoal (LPred name arity ts) = LPred name arity <$> prepareTerms ts 
+    prepareGoal (t1 :=: t2) = (:=:) <$> prepareTerm t1 <*> prepareTerm t2 
+
+    prepareTerm :: (CoreLogical m)
+        => CoreTerm 
+        -> m CoreTerm
+    prepareTerm c@(LFun name 0 []) = (Atom <$> getSymbol name) <|> (pure c)
+    prepareTerm others = pure others
+
+    prepareTerms :: (CoreLogical m)
+        => [CoreTerm]
+        -> m [CoreTerm]
+    prepareTerms = mapM prepareTerm
 
     -- | Renames all variables in any rule, such that they hopefully never collide with variables in any clause.
     prepareBase :: () 

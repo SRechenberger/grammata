@@ -1,0 +1,22 @@
+program Map 
+with
+
+begin
+	base map says
+		map(nil,nil).
+		map(c(X,XS), c(f(X),XS1)) :- map(XS,XS1).
+	end
+
+	query askMap() 
+	asks map 
+	for Xs
+	?- map(c(1,c(2,c(3,c(4,nil)))),Xs)
+	end
+
+	func main() 
+	with
+		var xs := c(1,c(2,c(3,c(4,nil))));
+	does
+		return askMap();
+	end
+end

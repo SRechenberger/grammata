@@ -109,14 +109,14 @@ where
             state <- get 
             returns <- popBacktrackPoint . trail $ state
             case returns of
-                Nothing -> return (trace "()" ())
+                Nothing -> return ()
                 Just (t, ((s,h),btp)) -> do
         --            liftIO . putStrLn $ "POP BTP " ++ show t
                     put state {stack = s, heap = h, trail = t}
                     btp
         getSymbol ident = do
-            state <- get
-            (return . stack) state >>= (ident ==>)
+            s <- stack <$> get 
+            ident ==> s
         enter frame = do
             state <- get
             s <- (return . stack) state >>= pushFrame frame
@@ -176,11 +176,12 @@ where
                     put state {stack = s'}
                     flip (callProcedure "main") [] $ \bsc -> do 
                         liftIO . putStrLn $ show bsc ++ " ?"
-                        c <- liftIO getLine
+                        c <- liftIO getChar
+                        liftIO . putStrLn $ ""
                         case c of 
-                            "yes" -> return ()
-                            "no"  -> trackback
-                            _     -> trackback
+                            'y' -> return ()
+                            'n'  -> trackback
+                            _    -> trackback
 
 
 
