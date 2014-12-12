@@ -16,8 +16,8 @@
 ---------------------------------------------------------------------------
 
 ---------------------------------------------------------------------------
--- | Module : Grammata
--- Description : Grammata Main Module
+-- | Module : Grammata.Interpreter
+-- Description : Grammata Interpreter Module
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
@@ -25,23 +25,19 @@
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
-module Grammata 
+module Grammata.Interpreter
 (
-    executeScript
+    compileGrammata
 )
 where
 
-    import Debug.Trace 
+        import Grammata.Interpreter.Compilation (compileProgram, Program (..))
+        import Grammata.Interpreter.Compiler (runCompiler)
 
-    import Grammata.Language (parseGrammata)
-    import Grammata.Interpreter (compileGrammata)
-    import Grammata.Machine (runProgram)
+        import Grammata.Machine 
 
-    executeScript :: () 
-        => String 
-        -> IO ()
-    executeScript script = case parseGrammata script of
-            Left err  -> putStrLn $ "PARSER ERROR " ++ err 
-            Right ast -> case compileGrammata ast of 
-                    Left err  -> putStrLn $ "COMPILER ERROR " ++ err 
-                    Right (subprgs, globs) -> runProgram subprgs globs
+        compileGrammata :: ()
+            => Program 
+            -> Either String ([(Ident, Subprogram Machine)], [(Ident, CoreExpression Machine)])
+        compileGrammata prg = runCompiler (compileProgram prg) (fst . unzip . globals $ prg) (fst . unzip . subs $ prg)
+

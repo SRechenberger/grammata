@@ -2,8 +2,8 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                grammata
-version:             0.1.8.2
-synopsis:            Grammata-script interpreter
+version:             0.3.0.0
+synopsis:            Grammata-script parser, compiler and executing virtual machine.
 -- description:         
 homepage:            https://github.com/SRechenberger/grammata
 license:             GPL-3
@@ -17,6 +17,32 @@ cabal-version:       >=1.8
 
 executable grammata
   main-is:             Main.hs 
-  other-modules:       General.Expression, General.Environment, General.Execution, General
-  build-depends:       base == 4.*, mtl == 2.*, transformers == 0.*, either == 4.*, array == 0.*
+  other-modules:       Grammata.Machine, 
+                       Grammata.Machine.Core, 
+                       Grammata.Machine.Core.Imperative,
+                       Grammata.Machine.Core.Functional,
+                       Grammata.Machine.Core.Logical,
+                       Grammata.Machine.Core.Class
+                       Grammata.Machine.Core.Types
+                       Grammata.Machine.Storage,
+                       Grammata.Machine.Storage.Imperative,
+                       Grammata.Machine.Storage.Functional,
+                       Grammata.Machine.Storage.Logical,
+                       Grammata.Language
+                       Grammata.Language.Program,
+                       Grammata.Language.Expression,
+                       Grammata.Language.Functional,
+                       Grammata.Language.Imperative,
+                       Grammata.Language.Logical,
+                       Grammata.Language.Value
+                       Grammata.Interpreter.Compilation
+                       Grammata.Interpreter.Compiler
+  build-depends:       base == 4.*, 
+                       mtl == 2.*, 
+                       transformers == 0.*, 
+                       either == 4.*, 
+                       array == 0.*, 
+                       containers == 0.5.*, 
+                       QuickCheck == 2.*, 
+                       parsec == 3.1.*
   hs-source-dirs:      src

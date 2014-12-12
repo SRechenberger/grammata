@@ -1,0 +1,31 @@
+program Constructs
+begin
+
+    query nums() for X ?-
+        X :=: 0;
+        X :=: 1;
+        X :=: 2;
+        X :=: 3;
+        X :=: 5;
+        X :=: 8;
+        X :=: 13
+    end
+
+    func main() 
+    with
+        var x := nums();
+        var y := $x;
+    does
+        if $x < 2 then
+            while $x < 3 do
+                x := $x+1;
+            end
+        else
+            do
+                x := $x - 2;
+            while $x >= 0
+            end
+        end
+        return pair($y,$x * $x);
+    end
+end

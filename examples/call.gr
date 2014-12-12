@@ -1,0 +1,15 @@
+program Call
+with
+	var x := 0;
+begin
+	proc setX(s) 
+	does
+		x := $s;
+		exit;
+	end
+
+	func main() does
+		call setX(6);
+		return $x;
+	end
+end

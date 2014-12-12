@@ -16,8 +16,8 @@
 ---------------------------------------------------------------------------
 
 ---------------------------------------------------------------------------
--- | Module : Grammata
--- Description : Grammata Main Module
+-- | Module : Grammata.Machine.Storage
+-- Description : Grammata Polyparadigmatic Storages
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
@@ -25,23 +25,31 @@
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
-module Grammata 
+module Grammata.Machine.Storage
 (
-    executeScript
+    -- * Submodules
+    module Grammata.Machine.Storage.Functional,
+    module Grammata.Machine.Storage.Imperative,
+    module Grammata.Machine.Storage.Logical,
+
+    -- * Classes
+    Initializable (..)
 )
 where
 
-    import Debug.Trace 
+    import Grammata.Machine.Storage.Functional
+    import Grammata.Machine.Storage.Imperative
+    import Grammata.Machine.Storage.Logical
 
-    import Grammata.Language (parseGrammata)
-    import Grammata.Interpreter (compileGrammata)
-    import Grammata.Machine (runProgram)
+    -- | Generalization of storage initialization.
+    class Initializable mem where
+        new :: mem
 
-    executeScript :: () 
-        => String 
-        -> IO ()
-    executeScript script = case parseGrammata script of
-            Left err  -> putStrLn $ "PARSER ERROR " ++ err 
-            Right ast -> case compileGrammata ast of 
-                    Left err  -> putStrLn $ "COMPILER ERROR " ++ err 
-                    Right (subprgs, globs) -> runProgram subprgs globs
+    instance Initializable (IStorage ident value) where
+        new = newIStorage
+
+    instance Initializable (FStorage value) where
+        new = newFStorage
+
+    instance Initializable (LStorage ident value) where
+        new = newLStorage
