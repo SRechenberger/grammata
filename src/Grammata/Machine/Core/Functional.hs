@@ -37,7 +37,7 @@ module Grammata.Machine.Core.Functional
 )
 where 
 
-    -- import Debug.Trace
+    import Debug.Trace
 
     import Prelude hiding (toInteger)
 
@@ -119,7 +119,12 @@ where
         -> (CoreLambda m -> m ()) -- ^ Returning point.
         -> m ()                   -- ^ Binding action.
     bind f args retPt = case f of
-        FConst (HeapObj ptr) -> fromHeap ptr (\expr -> bind expr args retPt) 
+        FConst (HeapObj ptr) -> fromHeap ptr $ \expr -> bind expr args retPt
+        FVar ident -> do 
+            f' <- loadFree ident
+            case f' of 
+                HeapObj ptr -> fromHeap ptr $ \f'' -> bind f'' args retPt
+                other       -> retPt (FApp (FConst other) args)
         FAbs ids e -> mapM new args >>= (if length args == length ids 
             then return . foldr subst e . zip ids 
             else if length ids > length args 
@@ -132,7 +137,7 @@ where
         => (Ident, Pointer) -- ^ Identifier to replace with the given pointer.
         -> CoreLambda m     -- ^ Original expression.
         -> CoreLambda m     -- ^ New expression.
-    subst (param, ptr) expr = replaceIn expr 
+    subst (param, ptr) = replaceIn 
         where 
             e :: CoreLambda m
             e = FConst . HeapObj $ ptr 
@@ -155,7 +160,7 @@ where
         -> (CoreLambda m -> m ())  -- ^ Returning Point.
         -> m ()             -- ^ Evaluation action.
     step expr retPt = case expr of
-        FVar i -> 
+        FVar i -> do 
             loadFree i >>= retPt . FConst
 
         FConst (HeapObj ptr) -> 
@@ -200,7 +205,8 @@ where
         => CoreLambda m
         -> (CoreLambda m -> m ())
         -> m ()
-    reduce expr retPt = do 
+    reduce expr retPt = do
+    --    traceShow expr return ()
         redex <- isRedex expr 
         if redex 
             then step expr retPt
@@ -225,7 +231,9 @@ where
         -> (Basic -> m ())      -- ^ Returning point.
         -> m ()                 -- ^ Program action.
     runLambda (CLM lambda params) args retPt = do 
-        enter (params `zip` args)
-        reduceToBasic lambda $ \bsc -> do
-            leave
-            retPt bsc
+    --    enter (params `zip` args)
+        bind (FAbs params lambda) (map FConst args) $ \lambda' -> do
+    --        traceShow lambda' (return ())
+            reduceToBasic lambda' $ \bsc -> do
+    --            leave
+                retPt bsc

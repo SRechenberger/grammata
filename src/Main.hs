@@ -43,6 +43,6 @@ where
         file <- case args of 
         	[] -> getLine
         	a:_ -> return a
-        script <- readFile "../examples/map.gr"
+        script <- readFile file
         hSetBuffering stdin NoBuffering
         executeScript script 

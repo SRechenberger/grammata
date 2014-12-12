@@ -84,7 +84,7 @@ where
     parseProgram :: Parser Program 
     parseProgram = Program 
         <$> (token "program" *> ((:) <$> upper <*> manyTill alphaNum (lookAhead $ token "with" <|> token "begin"))) 
-        <*> (token "with" *> manyTill decl (lookAhead . token $ "begin"))
+        <*> ((try (token "with") *> manyTill decl (lookAhead . token $ "begin")) <|> pure [])
         <*> (token "begin" *> manyTill subprg (lookAhead . token $ "end"))
         <*  token "end"
         where

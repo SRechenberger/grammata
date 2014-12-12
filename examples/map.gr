@@ -2,21 +2,30 @@ program Map
 with
 
 begin
-	base map says
-		map(nil,nil).
-		map(c(X,XS), c(f(X),XS1)) :- map(XS,XS1).
+	lambda g(z) is
+		\$x . $z * $x * $x
 	end
 
-	query askMap() 
+	lambda apply(f,x) is
+		($f $x)
+	end
+
+	base map says
+		map(f,nil,nil).
+		map(f,c(X,XS), c(apply(f,X),XS1)) :- map(f,XS,XS1).
+	end
+
+	query askMap(f,list) 
 	asks map 
 	for Xs
-	?- map(c(1,c(2,c(3,c(4,nil)))),Xs)
+	?- map(f,list,Xs)
 	end
 
 	func main() 
 	with
 		var xs := c(1,c(2,c(3,c(4,nil))));
+		var f := g(5);
 	does
-		return askMap();
+		return apply($f,2);
 	end
 end

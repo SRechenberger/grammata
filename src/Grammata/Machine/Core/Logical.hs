@@ -91,6 +91,7 @@ where
           Atom Basic             -- ^ An 'atom'. 
         | Var LVar               -- ^ A logical variable.
         | LFun Ident Int [CoreTerm] -- ^ A function.
+--        deriving (Show)
 
     instance NextNames CoreTerm where
         nextNames (Var var) = Var $ nextNames var 
@@ -100,7 +101,7 @@ where
     instance Show CoreTerm where
         show (Var var) = show var
         show (Atom val) = show val
-        show (LFun n i args) = n ++ (if i == 0 then "" else "(" ++ (intercalate ", " . take i . map show $ args) ++ ")")
+        show (LFun n i args) ="a_" ++ n ++ (if i == 0 then "" else "(" ++ (intercalate ", " . take i . map show $ args) ++ ")")
 
 
     -- | A substitution of logical variables.
@@ -108,7 +109,10 @@ where
 
     instance Monoid Subst where
         mempty = Subst id
-        s1 `mappend` s2 = Subst $ \x -> apply s2 . apply s1 $ x 
+        s1 `mappend` s2 = Subst $ \x -> let 
+            x' = s1 `apply` x
+            x'' = s2 `apply` x'
+            in x''
 
 
     -- | A logical goal.
@@ -244,7 +248,7 @@ where
     unify (Atom c1) (Var  v2)              = Just . newSubst v2 . Atom $ c1
     unify (Atom c1) (LFun _ _ _)           = Nothing
     unify (Var  v1) (Atom c2)              = Just . newSubst v1 . Atom $ c2
-    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v2 (Var v1)
+    unify (Var  v1) (Var  v2)              = Just $ if v1 == v2 then mempty else newSubst v1 (Var v2)
     unify (Var  v1) s                      = if v1 `occursIn` s then Nothing else Just $ newSubst v1 s
     unify (LFun _ _ _) (Atom _)            = Nothing
     unify s@(LFun _ _ _) (Var v2)          = if v2 `occursIn` s then Nothing else Just $ newSubst v2 s
@@ -260,7 +264,7 @@ where
     unifyList [] [] s = Just s 
     unifyList (a:as) (b:bs) s = case a `unify` b of
         Nothing -> Nothing
-        Just s' -> unifyList as bs (s' <> s)
+        Just s' -> unifyList as bs (s <> s')
 
 
     -- | Tries to match two predicates, returning a substitution, if there is one.
@@ -269,7 +273,7 @@ where
         -> CoreGoal     -- ^ Predicate b.
         -> Maybe Subst  -- ^ Maybe a substitution, unifying a and b.
     match p1@(LPred name arity terms) p2@(LPred name' arity' terms') = if name == name' && arity == arity' 
-        then unifyList terms terms' mempty 
+        then unifyList terms terms' mempty
         else Nothing
     match _ _ = Nothing
 
@@ -289,7 +293,7 @@ where
         -> ((Bool, Subst) -> m ())  -- ^ Returning point.
         -> m ()                     -- ^ Remaining program action.
     search []     _    s retPt = retPt (True, s)
-    search (g:gs) base s retPt = trace (show $ g:gs) $ let base' = map nextNames base in case g of
+    search (g:gs) base s retPt = let base' = map nextNames base in case g of
         LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base' retPt
         LNot cs -> do
             search cs base' s $ \(success, _) -> if success 
@@ -328,7 +332,6 @@ where
         enter p_as
         allBases <- prepareBase . concat <$> mapM getBase bases 
         clauses' <- prepareClauses clauses
-        trace (show clauses') return ()
         case sought of 
             Nothing -> search clauses' allBases mempty $ \(success, _) -> retPt (Boolean success)
             Just x  -> search clauses' allBases mempty $ \(success, subst) -> if success
@@ -360,7 +363,8 @@ where
     prepareTerm :: (CoreLogical m)
         => CoreTerm 
         -> m CoreTerm
-    prepareTerm c@(LFun name 0 []) = (Atom <$> getSymbol name) <|> (pure c)
+    prepareTerm c@(LFun name 0 []) = ((basicToTerm <$> getSymbol name)) <|> (pure c)
+    prepareTerm (Atom b) = pure $ basicToTerm b 
     prepareTerm others = pure others
 
     prepareTerms :: (CoreLogical m)
