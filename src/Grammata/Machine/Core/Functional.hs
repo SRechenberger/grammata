@@ -74,7 +74,7 @@ where
         show (FVar ident) = "var(" ++ ident ++ ")"
         show (FConst bsc) = "basic(" ++ show bsc ++ ")" 
         show (FIf ec et ee) = "(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
-        show (FOp _ args) = "(f " ++ unwords (map show args) ++ ")"
+        show (FOp _ args) = "(" ++ intercalate " `op` " (map show args) ++ ")"
         show (FCall i args) = "(" ++ i ++ " " ++ unwords (map show args) ++ ")"
         show (FLet defs e) = "(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
         show (FApp e args) = "(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
@@ -206,7 +206,6 @@ where
         -> (CoreLambda m -> m ())
         -> m ()
     reduce expr retPt = do
-    --    traceShow expr return ()
         redex <- isRedex expr 
         if redex 
             then step expr retPt

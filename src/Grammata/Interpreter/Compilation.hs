@@ -327,3 +327,7 @@ where
     compileBasicValue (Natural n) = return $ bNat n 
     compileBasicValue (Real r) = return $ bReal r 
     compileBasicValue (Boolean b) = return $ bBool b
+    compileBasicValue (List xs) = foldr cons nil <$> (mapM compileBasicValue xs)
+        where
+            cons x xs = bStruct "cons" [x,xs]
+            nil = bStruct "nil" []

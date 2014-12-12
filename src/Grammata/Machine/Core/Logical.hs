@@ -109,10 +109,7 @@ where
 
     instance Monoid Subst where
         mempty = Subst id
-        s1 `mappend` s2 = Subst $ \x -> let 
-            x' = s1 `apply` x
-            x'' = s2 `apply` x'
-            in x''
+        s1 `mappend` s2 = Subst $ apply s1 . apply s2 . apply s1 
 
 
     -- | A logical goal.

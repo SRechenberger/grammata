@@ -11,8 +11,8 @@ begin
 	end
 
 	base map says
-		map(f,nil,nil).
-		map(f,c(X,XS), c(apply(f,X),XS1)) :- map(f,XS,XS1).
+		map(F,nil,nil).
+		map(F,c(X,XS), c(apply(F,X),XS1)) :- map(F,XS,XS1).
 	end
 
 	query askMap(f,list) 
@@ -26,6 +26,6 @@ begin
 		var xs := c(1,c(2,c(3,c(4,nil))));
 		var f := g(5);
 	does
-		return apply($f,2);
+		return askMap($f,$xs);
 	end
 end

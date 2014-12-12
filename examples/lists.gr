@@ -1,0 +1,13 @@
+program Lists
+with
+    var test := [1,2,3,[4,5]];
+begin
+    base lists says
+        member(X,cons(X,Xs)).
+        member(X,cons(Y,Xs)) :- member(X,Xs).
+    end
+
+    query main() asks lists for X ?-
+        member(X,[1,2,3,4])
+    end
+end
