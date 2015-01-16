@@ -47,7 +47,10 @@ where
 
     import Debug.Trace
 
+    import Data.Map (toList)
+
     import Control.Applicative ((<$>))
+    import Control.Monad.State (modify, gets)
 
     import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
     import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runCoreMethod, evalExpressionlist, CoreImperative (..), CoreMethod (..))
@@ -60,14 +63,14 @@ where
     import Grammata.Machine.Storage (
         LStorage, newLStorage, popBacktrackPoint, pushBacktrackPoint, 
         FStorage, newFStorage, depose, update, load,
-        IStorage, newIStorage, (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists) 
+        IStorage, newIStorage, (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists, global) 
     import qualified Grammata.Machine.Storage as Heap (alloc)
 
 
     -- | Union type for subprograms.
     data Subprogram m = 
         -- | Imperative subprogram; i.e. functions or procedures.
-          Imperative (CoreMethod m) Bool
+          Imperative (CoreMethod m)
         -- | Functional subprogram; i.e. a lambda expression.
         | Functional (CoreLambdaMethod m) 
         -- | Logical subprogram; i.e. a query
@@ -81,10 +84,10 @@ where
     type Stack = IStorage Ident Basic
     type Heap = FStorage (CoreLambda Machine)
     type Trail = LStorage BacktrackPoint Machine
-    type BacktrackPoint = (Stack,Heap)
+    type BacktrackPoint = Stack
 
     -- | Storage holding a stack and a heap.
-    data Storage = Storage { stack :: Stack, heap :: Heap, trail :: Trail }
+    data Storage = Storage { stack :: Stack, heap :: Heap, trail :: Trail, persistent :: Basic }
 
     -- | Shortcut for the execution monad.
     type Machine = Grammateion Dict Storage
@@ -96,13 +99,13 @@ where
             case name `lookup` dict of 
                 Nothing -> retPt $ Struct name (length args) args
                 Just meth -> case meth of 
-                    Imperative method access -> runCoreMethod method args access retPt
-                    Functional lambda        -> runLambda lambda args retPt
-                    Logical query            -> askQuery query args retPt
-                    Base _                   -> fail $ "ERROR CORE cannot run logical base " ++ name ++ " as procedure."
+                    Imperative method -> runCoreMethod method args retPt
+                    Functional lambda -> runLambda lambda args retPt
+                    Logical query     -> askQuery query args retPt
+                    Base _            -> fail $ "ERROR CORE cannot run logical base " ++ name ++ " as procedure."
         setBacktrackPoint btp = do 
             state <- get 
-            t <- (return . trail) state >>= pushBacktrackPoint ((stack state, heap state), btp) 
+            t <- (return . trail) state >>= pushBacktrackPoint (stack state, btp) 
         --    liftIO . putStrLn $ "PUSH BTP " ++ show t
             put state {trail = t}
         trackback = do 
@@ -110,9 +113,9 @@ where
             returns <- popBacktrackPoint . trail $ state
             case returns of
                 Nothing -> return ()
-                Just (t, ((s,h),btp)) -> do
+                Just (t, (s,btp)) -> do
         --            liftIO . putStrLn $ "POP BTP " ++ show t
-                    put state {stack = s, heap = h, trail = t}
+                    put state {stack = s, trail = t}
                     btp
         getSymbol ident = do
             s <- stack <$> get 
@@ -125,6 +128,8 @@ where
             state <- get
             s <- (return . stack) state >>= popFrame
             put state {stack = s}
+        keep bsc = modify $ \s -> s { persistent = bsc }
+        remind = gets persistent
 
     instance CoreImperative (Grammateion Dict Storage) where
         readStack ident = get >>= \state -> (return . stack) state >>= (ident ==>) 
@@ -145,7 +150,7 @@ where
                     h' <- update ptr lambda' h  -- TODO zweites den reduzierten Ausdruck nicht auf die Halde legendes 'reduce' schreiben.
                     put state {heap = h'}
                     retPt lambda'
-        loadFree = getSymbol
+        loadFree = toList . global . stack <$> get 
         exists ident = get >>= \state -> (return . stack) state >>= identExists ident
 
     instance CoreLogical (Grammateion Dict Storage) where
@@ -161,7 +166,7 @@ where
         -> [(Ident, CoreExpression Machine)]    -- ^ List of global variables.
         -> IO ()                                -- ^ Program execution action.
     runProgram dict globals = do 
-        result <- runGrammateion program (Dict dict) (Storage newIStorage newFStorage newLStorage) 
+        result <- runGrammateion program (Dict dict) (Storage newIStorage newFStorage newLStorage Null) 
         case result of 
             Left err -> putStrLn err
             Right (e,s)  -> putStrLn "OK." 

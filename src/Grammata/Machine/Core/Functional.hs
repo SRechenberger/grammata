@@ -68,6 +68,13 @@ where
         | FApp (CoreLambda m) [CoreLambda m]
         -- | λ <IDENT>* . <LAMBDA>
         | FAbs [Ident] (CoreLambda m)
+        -- | keep
+        | FKeep (CoreLambda m)
+        -- | remind
+        | FRemind
+        -- | backtrack
+        | FBackTrack
+
 
 
     instance Show (CoreLambda m) where
@@ -79,6 +86,9 @@ where
         show (FLet defs e) = "(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
         show (FApp e args) = "(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
         show (FAbs ids e) = "(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
+        show (FKeep e) = "(keep " ++ show e ++ ")"
+        show (FRemind) = "remind"
+        show (FBackTrack) = "backtrack"
 
     -- | Functional core language evaluation monad class.
     class GrammataCore m => CoreFunctional m where
@@ -91,8 +101,8 @@ where
         -- | Loads an expression from the heap and evaluates it, if this was not done already.
         fromHeap :: Pointer -> (CoreLambda m -> m ()) -> m ()
         -- | Gets the value of an identifier from the global scope.
-        loadFree :: Ident -> m Basic 
-        -- | Checks, whether an identifier references a value on the stack.
+        loadFree :: m [(Ident, Basic)] 
+        -- | Checks, whether an identifier references a value on the stack or not.
         exists   :: Ident -> m Bool
 
 
@@ -111,6 +121,9 @@ where
     isRedex (FAbs _ _)          = return False
     isRedex (FApp (FAbs _ _) _) = return True
     isRedex (FApp f _)          = isRedex f
+    isRedex (FKeep _)           = return True
+    isRedex FRemind             = return True
+    isRedex FBackTrack          = return True
 
     -- | Binds some expressions within a lambda abstraction.
     bind :: (CoreFunctional m)
@@ -120,11 +133,11 @@ where
         -> m ()                   -- ^ Binding action.
     bind f args retPt = case f of
         FConst (HeapObj ptr) -> fromHeap ptr $ \expr -> bind expr args retPt
-        FVar ident -> do 
-            f' <- loadFree ident
-            case f' of 
-                HeapObj ptr -> fromHeap ptr $ \f'' -> bind f'' args retPt
-                other       -> retPt (FApp (FConst other) args)
+--        FVar ident -> do 
+--            f' <- loadFree ident
+--            case f' of 
+--                HeapObj ptr -> fromHeap ptr $ \f'' -> bind f'' args retPt
+--                other       -> retPt (FApp (FConst other) args)
         FAbs ids e -> mapM new args >>= (if length args == length ids 
             then return . foldr subst e . zip ids 
             else if length ids > length args 
@@ -152,6 +165,7 @@ where
                 else FLet (map (\(i,e') -> (i, replaceIn e')) defs) (replaceIn e) 
             replaceIn (FApp f as) = FApp (replaceIn f) (map replaceIn as)
             replaceIn (FAbs is f) = FAbs is (replaceIn f)
+            replaceIn (FKeep e) = FKeep (replaceIn e)
             replaceIn fconst = fconst
 
     -- | Reduces a lambda expression by one step.
@@ -160,8 +174,7 @@ where
         -> (CoreLambda m -> m ())  -- ^ Returning Point.
         -> m ()             -- ^ Evaluation action.
     step expr retPt = case expr of
-        FVar i -> do 
-            loadFree i >>= retPt . FConst
+        FVar i -> fail $ "MACHINE.CORE.FUNCTIONAL " ++ i ++ " not in scope."
 
         FConst (HeapObj ptr) -> 
             fromHeap ptr (\heapObj -> reduce heapObj retPt)
@@ -186,6 +199,12 @@ where
         FApp f args -> case args of 
             []   -> reduce f retPt
             args -> bind f args (\expr -> reduce expr retPt)
+
+        FKeep expr -> reduceToBasic expr $ \bsc -> keep bsc >> reduce (FConst bsc) retPt
+
+        FBackTrack -> trackback
+
+        FRemind -> remind >>= \bsc -> reduce (FConst bsc) retPt
 
     {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
         @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.
@@ -231,7 +250,8 @@ where
         -> m ()                 -- ^ Program action.
     runLambda (CLM lambda params) args retPt = do 
     --    enter (params `zip` args)
-        bind (FAbs params lambda) (map FConst args) $ \lambda' -> do
+        (ids,globs) <- unzip <$> loadFree
+        bind (FAbs (params ++ ids) lambda) (map FConst (args ++ globs)) $ \lambda' -> do
     --        traceShow lambda' (return ())
             reduceToBasic lambda' $ \bsc -> do
     --            leave

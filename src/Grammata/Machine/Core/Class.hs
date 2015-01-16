@@ -64,3 +64,7 @@ where
         trackback :: m ()
         -- | Read a symbol from the stack.
         getSymbol    :: Ident -> m Basic 
+        -- | Keeps the given basic value in the persistent register.
+        keep :: Basic -> m () 
+        -- | Gets the value in the persistent register.
+        remind :: m Basic

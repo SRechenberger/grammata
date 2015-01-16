@@ -93,7 +93,7 @@ where
                 e' <- compileImperativeExpression e 
                 return (ident, e')
         stmts' <- concat <$> mapM compileImperativeStatement stmts
-        return $ imperative locals' params stmts' (ret /= Something) 
+        return $ imperative locals' params stmts' 
     compileSubprogram (Lambda params lambda) = do
         lambda' <- compileLambda lambda 
         return $ functional lambda' params

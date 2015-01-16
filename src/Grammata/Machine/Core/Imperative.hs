@@ -71,7 +71,10 @@ where
         -- | call <IDENT> (<EXPR>*)
         | ICall Ident [CoreExpression m]
         -- | trackback
-        | ITrackBack
+        | IBackTrack
+        -- | keep <EXPR>
+        | IKeep (CoreExpression m)
+
 
 
     -- | Arithmetical Expression AST.
@@ -84,6 +87,8 @@ where
         | IOp ([Basic] -> m Basic) [CoreExpression m]
         -- | <IDENT> (<EXPR>*)
         | IFunc Ident [CoreExpression m]
+        -- | remind
+        | IRemind
 
     instance Show (CoreStatement m) where
         show (_ := _) = "assingment"
@@ -91,7 +96,9 @@ where
         show (IWhile _ c) = "while"
         show (IReturn _) = "return"
         show (ICall _ _) = "call" 
-        show (ITrackBack) = "trackback" 
+        show (IBackTrack) = "trackback"
+        show (IKeep _) = "keep"
+
         
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
@@ -105,16 +112,15 @@ where
     runCoreMethod :: (CoreImperative m) 
         => CoreMethod m     -- ^ Method to execute.
         -> [Basic]          -- ^ Arguments of the method call.
-        -> Bool             -- ^ True, if write access to global variables is granted; false otherwise.
         -> (Basic -> m ())  -- ^ Returning point.
         -> m ()             -- ^ Remaining program action.
-    runCoreMethod (Method locals params stmts) args access retPt = let p_as = params `zip` args in do
+    runCoreMethod (Method locals params stmts) args retPt = let p_as = params `zip` args in do
         enter p_as
         let (names, exprs) = unzip locals 
         evalExpressionlist locals exprs [] $ \vals -> let locals' = names `zip` vals in do 
             leave
             enter (locals' ++ p_as)
-            runImperative stmts access $ \bsc -> do
+            runImperative stmts $ \bsc -> do
                 leave
                 retPt bsc
 
@@ -130,6 +136,7 @@ where
         IVal val        -> retPt val 
         IOp f args      -> evalExpressionlist tmp args [] $ (\bscs -> f bscs >>= retPt)
         IFunc name args -> evalExpressionlist tmp args [] $ (callProcedure name retPt)
+        IRemind         -> remind >>= retPt
 
         where 
             readTemp tmp var = case var `lookup` tmp of
@@ -151,24 +158,26 @@ where
     -- | Executes the given sequence of 'CoreStatement's.
     runImperative :: (CoreImperative m) 
         => [CoreStatement m] -- ^ Sequence of 'CoreStatement's.
-        -> Bool              -- ^ True, if write access to global variables is granted; false otherwise.
         -> (Basic -> m ())   -- ^ Return point.
         -> m ()              -- ^ Execution action.
-    runImperative []        _      _     = fail "ERROR CORE.IMPERATIVE unexpected end of program."
-    runImperative (s:stmts) access retPt = case s of 
+    runImperative []        _     = fail "ERROR CORE.IMPERATIVE unexpected end of program."
+    runImperative (s:stmts) retPt = case s of 
         ident := expr -> 
-            evalExpression [] (\bsc -> (if access then writeStack ident bsc else writeLocals ident bsc) >> runImperative stmts access retPt) expr 
+            evalExpression [] (\bsc -> writeStack ident bsc >> runImperative stmts retPt) expr 
         IIf cond thenBlock elseBlock -> 
-            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) access retPt) cond
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) retPt) cond
         IWhile cond block ->
-            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block ++ [s] else []) ++ stmts) access retPt) cond
+            evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then block ++ [s] else []) ++ stmts) retPt) cond
         IReturn expr -> 
             evalExpression [] retPt expr
         ICall name exprs -> 
             evalExpressionlist [] exprs [] $ callProcedure name $ \_ -> 
-                runImperative stmts access retPt
-        ITrackBack -> 
+                runImperative stmts retPt
+        IBackTrack -> 
             trackback
+        IKeep expr -> 
+            evalExpression [] (\bsc -> keep bsc >> runImperative stmts retPt) expr
+
 
 {-
     -- | Evaluates an arithmetical expression.
@@ -233,7 +242,7 @@ where
                     if cond' then run $ block ++ stmt:stmts else run stmts
                 IReturn expr -> evalExpression [] expr >>= choice . map return
                 ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
-                TrackBack -> trackBack 
+                BackTrack -> trackBack 
 
     -- | Runs a method as a procedure taking its arguments.
     runProcedure :: CoreImperative m 
@@ -264,6 +273,6 @@ where
                         0 -> return ()
                         _ -> fail $ "ERROR CORE.IMPERATIVE exit code " ++ show n ++ "."
                 ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
-                TrackBack -> trackBack 
+                BackTrack -> trackBack 
 
 -}

@@ -34,7 +34,7 @@ module Grammata.Machine.Storage.Imperative
     newIStorage,
 
     -- * Reading and writing
-    (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists
+    (==>), (<==), setGlob, readGlob, pushFrame, popFrame, writeLoc, identExists, global
 )
 where
 

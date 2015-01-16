@@ -50,9 +50,8 @@ where
         => [(Ident, CoreExpression m)]  -- ^ Local variables.
         -> [Ident]                      -- ^ Parameters.
         -> [CoreStatement m]            -- ^ Instructions.
-        -> Bool                         -- ^ True if writing access to global variables is granted.
         -> Subprogram m                 -- ^ Imperative subprogram.
-    imperative locals params stmts access = Imperative (Method locals params stmts) access
+    imperative locals params stmts = Imperative (Method locals params stmts)
 
     -- | Assignment: a := b;
     iAssignment :: ()
@@ -89,10 +88,21 @@ where
         -> CoreStatement m      -- ^ Procedure call.
     iCall = ICall 
 
-    -- | Forced backtracking: trackback.
+    -- | Forced backtracking: backtrack.
     iTrackBack :: () 
         => CoreStatement m      -- ^ Trackback statement.
-    iTrackBack = ITrackBack
+    iTrackBack = IBackTrack
+
+    -- | Saves the given expression's value in a persisten register: keep.
+    iKeep :: ()
+        => CoreExpression m     -- ^ Expression, whichs value is to be kept.
+        -> CoreStatement m      -- ^ Keep statement.
+    iKeep = IKeep
+
+    -- | Gets the value stored in the persistent register: remind.
+    iRemind :: ()
+        => CoreExpression m     -- ^ Remind expression.
+    iRemind = IRemind
 
     -- | Variable expression: a.
     iVar :: ()
@@ -181,6 +191,22 @@ where
         -> CoreLambda m -- ^ Expression e.
         -> CoreLambda m -- ^ Functional abstraction expression.
     fAbs = FAbs 
+
+    -- | Forces backtracking if evaluated: backtrack.
+    fBackTrack :: ()
+        => CoreLambda m     -- ^ Backtrack expression.
+    fBackTrack = FBackTrack 
+    
+    -- | Saves the given expression's value in a persisten register: keep.
+    fKeep :: ()
+        => CoreLambda m     -- ^ Expression, whichs value is to be kept.
+        -> CoreLambda m     -- ^ Keep expression.
+    fKeep = FKeep
+
+    -- | Gets the value stored in the persistent register: remind.
+    fRemind :: ()
+        => CoreLambda m     -- ^ Remind expression.
+    fRemind = FRemind       
 
     -- | New logical query.
     query :: ()
