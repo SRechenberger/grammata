@@ -82,7 +82,7 @@ where
         show (FConst bsc) = "basic(" ++ show bsc ++ ")" 
         show (FIf ec et ee) = "(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
         show (FOp _ args) = "(" ++ intercalate " `op` " (map show args) ++ ")"
-        show (FCall i args) = "(" ++ i ++ " " ++ unwords (map show args) ++ ")"
+        show (FCall i args) = "(call " ++ i ++ " " ++ unwords (map show args) ++ ")"
         show (FLet defs e) = "(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
         show (FApp e args) = "(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
         show (FAbs ids e) = "(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
@@ -100,23 +100,23 @@ where
         rewrite  :: Pointer -> CoreLambda m -> m ()
         -- | Loads an expression from the heap and evaluates it, if this was not done already.
         fromHeap :: Pointer -> (CoreLambda m -> m ()) -> m ()
-        -- | Gets the value of an identifier from the global scope.
-        loadFree :: m [(Ident, Basic)] 
-        -- | Checks, whether an identifier references a value on the stack or not.
-        exists   :: Ident -> m Bool
+        -- Gets the value of an identifier from the global scope.
+        -- loadFree :: m [(Ident, Basic)] 
+        -- Checks, whether an identifier references a value on the stack or not.
+        -- exists   :: Ident -> m Bool
 
 
     -- | Checks whether a lambda expression is reducable.
     isRedex :: (CoreFunctional m)
         => CoreLambda m     -- ^ Expression to check.
         -> m Bool           -- ^ Redex or not.
-    isRedex (FVar v)            = exists v 
+    isRedex (FVar v)            = return True
     isRedex (FConst c)          = case c of 
         HeapObj _ -> return True
         _         -> return False
     isRedex (FIf c _ _)         = return True 
     isRedex (FOp _ as)          = return True -- mapM isRedex as >>= return . and
-    isRedex (FCall _ as)        = mapM isRedex as >>= return . and
+    isRedex (FCall _ as)        = return True
     isRedex (FLet _ _)          = return True 
     isRedex (FAbs _ _)          = return False
     isRedex (FApp (FAbs _ _) _) = return True
@@ -174,7 +174,7 @@ where
         -> (CoreLambda m -> m ())  -- ^ Returning Point.
         -> m ()             -- ^ Evaluation action.
     step expr retPt = case expr of
-        FVar i -> fail $ "MACHINE.CORE.FUNCTIONAL " ++ i ++ " not in scope."
+        FVar i -> retPt (FConst $ Struct i 0 [])
 
         FConst (HeapObj ptr) -> 
             fromHeap ptr (\heapObj -> reduce heapObj retPt)
@@ -200,15 +200,13 @@ where
             []   -> reduce f retPt
             args -> bind f args (\expr -> reduce expr retPt)
 
-        FKeep expr -> reduceToBasic expr $ \bsc -> keep bsc >> reduce (FConst bsc) retPt
+        FKeep expr -> FConst . HeapObj <$> new expr >>= flip reduce retPt
 
         FBackTrack -> trackback
 
         FRemind -> remind >>= \bsc -> reduce (FConst bsc) retPt
 
-    {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
-        @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.
-    -}
+    -- | Reduces a lambda expression to a basic value; if not possible otherwise, a heap pointer is returned.
     reduceToBasic :: (CoreFunctional m) 
         => CoreLambda m     -- ^ Expression to reduce.
         -> (Basic -> m ())  -- ^ Returning point.
@@ -219,11 +217,13 @@ where
             FConst c -> retPt c 
             others   -> new others >>= retPt . HeapObj
 
-
+    {- | Reduces a lambda expression to 'lazy' β normal form; this is, that λ-abstractions are only reduceable, if all parameters are satisfied.
+        @(λa b.(λx.x) b) 1@ will reduced to @(λb.(λx.x) b)@ but not further even if its possible; @(λa b.b) 1 2@ will be evaluated to @2@.
+    -}
     reduce :: (CoreFunctional m)
-        => CoreLambda m
-        -> (CoreLambda m -> m ())
-        -> m ()
+        => CoreLambda m           -- ^ Expression to reduce.
+        -> (CoreLambda m -> m ()) -- ^ Returning point.
+        -> m ()                   -- ^ Reduction action.
     reduce expr retPt = do
         redex <- isRedex expr 
         if redex 
@@ -241,6 +241,22 @@ where
         []   -> retPt . reverse $ bscs
         e:es -> reduceToBasic e $ \bsc -> reduceList es (bsc:bscs) retPt 
 
+    -- | Replaces all free variables withing the given expression, using identifiers from the symbol table.
+    replaceFree :: (CoreFunctional m)
+        => CoreLambda m     -- ^ Expression, in which free variables are to be replaced.
+        -> [Ident]          -- ^ List of bound variables.
+        -> m (CoreLambda m) -- ^ Expression, with all free variables replaces by the value they represent.
+    replaceFree (FVar i) bound = if i `elem` bound then pure (FVar i) else FConst <$> (readSymbol i <|> pure (Struct i 0 []))
+    replaceFree (FIf c a b) bound = FIf <$> replaceFree c bound <*> replaceFree a bound <*> replaceFree b bound 
+    replaceFree (FOp op args) bound = FOp op <$> mapM (flip replaceFree bound) args 
+    replaceFree (FCall i args) bound = FCall i <$> mapM (flip replaceFree bound) args 
+    replaceFree (FLet defs e) bound = let 
+        bound' = (fst . unzip) defs ++ bound 
+        in FLet <$> mapM (\(i,e) -> (,) <$> pure i <*> replaceFree e bound') defs <*> replaceFree e bound'
+    replaceFree (FApp f args) bound = FApp <$> replaceFree f bound <*> mapM (flip replaceFree bound) args 
+    replaceFree (FAbs ids e) bound = FAbs ids <$> replaceFree e (ids ++ bound)
+    replaceFree (FKeep e) bound = FKeep <$> replaceFree e bound
+    replaceFree others _ = pure others
 
     -- | Calls a lambda and reduces it to a basic value (also to pointers).
     runLambda :: (CoreFunctional m)
@@ -249,10 +265,8 @@ where
         -> (Basic -> m ())      -- ^ Returning point.
         -> m ()                 -- ^ Program action.
     runLambda (CLM lambda params) args retPt = do 
-    --    enter (params `zip` args)
-        (ids,globs) <- unzip <$> loadFree
-        bind (FAbs (params ++ ids) lambda) (map FConst (args ++ globs)) $ \lambda' -> do
-    --        traceShow lambda' (return ())
-            reduceToBasic lambda' $ \bsc -> do
-    --            leave
+        enter (params `zip` args) 
+        lambda' <- replaceFree lambda [] 
+        reduceToBasic lambda' $ \bsc -> do
+                leave
                 retPt bsc

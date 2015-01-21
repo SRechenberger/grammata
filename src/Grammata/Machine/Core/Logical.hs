@@ -198,7 +198,7 @@ where
         Atom b -> retPt b 
         Var (v :$ _)  -> retPt $ Struct ('#':v) 0 []
         LFun n i as 
-            | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
+            | i == 0    -> (readSymbol n <|> pure (Struct n 0 [])) >>= retPt
             | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
 
 
@@ -360,7 +360,7 @@ where
     prepareTerm :: (CoreLogical m)
         => CoreTerm 
         -> m CoreTerm
-    prepareTerm c@(LFun name 0 []) = ((basicToTerm <$> getSymbol name)) <|> (pure c)
+    prepareTerm c@(LFun name 0 []) = ((basicToTerm <$> readSymbol name)) <|> (pure c)
     prepareTerm (Atom b) = pure $ basicToTerm b 
     prepareTerm others = pure others
 

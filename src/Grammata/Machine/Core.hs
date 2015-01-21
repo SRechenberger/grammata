@@ -102,11 +102,10 @@ where
                     Imperative method -> runCoreMethod method args retPt
                     Functional lambda -> runLambda lambda args retPt
                     Logical query     -> askQuery query args retPt
-                    Base _            -> fail $ "ERROR CORE cannot run logical base " ++ name ++ " as procedure."
+                    Base _            -> fail $ "ERROR CORE cannot run knowledge base " ++ name ++ " as procedure."
         setBacktrackPoint btp = do 
             state <- get 
             t <- (return . trail) state >>= pushBacktrackPoint (stack state, btp) 
-        --    liftIO . putStrLn $ "PUSH BTP " ++ show t
             put state {trail = t}
         trackback = do 
             state <- get 
@@ -114,12 +113,8 @@ where
             case returns of
                 Nothing -> return ()
                 Just (t, (s,btp)) -> do
-        --            liftIO . putStrLn $ "POP BTP " ++ show t
                     put state {stack = s, trail = t}
                     btp
-        getSymbol ident = do
-            s <- stack <$> get 
-            ident ==> s
         enter frame = do
             state <- get
             s <- (return . stack) state >>= pushFrame frame
@@ -130,11 +125,13 @@ where
             put state {stack = s}
         keep bsc = modify $ \s -> s { persistent = bsc }
         remind = gets persistent
+        readSymbol ident = do
+            s <- stack <$> get 
+            ident ==> s
 
     instance CoreImperative (Grammateion Dict Storage) where
-        readStack ident = get >>= \state -> (return . stack) state >>= (ident ==>) 
-        writeStack ident val = get >>= \state -> (return . stack) state >>= ident <== val >>= \s -> put state {stack = s}
-        writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
+        writeSymbol ident val = get >>= \state -> (return . stack) state >>= ident <== val >>= \s -> put state {stack = s}
+    --    writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
     
     instance CoreFunctional (Grammateion Dict Storage) where
         new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> return p
@@ -147,11 +144,10 @@ where
             if isBasic 
                 then retPt lambda 
                 else reduce lambda $ \lambda' -> do
-                    h' <- update ptr lambda' h  -- TODO zweites den reduzierten Ausdruck nicht auf die Halde legendes 'reduce' schreiben.
+                    h' <- update ptr lambda' h  
                     put state {heap = h'}
                     retPt lambda'
-        loadFree = toList . global . stack <$> get 
-        exists ident = get >>= \state -> (return . stack) state >>= identExists ident
+    --    loadFree = toList . global . stack <$> get 
 
     instance CoreLogical (Grammateion Dict Storage) where
         getBase name = ask >>= \(Dict dict) -> case name `lookup` dict of

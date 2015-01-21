@@ -102,10 +102,8 @@ where
         
     -- | Imperative core language evaluation monad class.
     class GrammataCore m => CoreImperative m where
-        -- | Reading from the stack.
-        readStack               :: Ident -> m Basic
         -- | Writing to the stack, either locally or or generally.
-        writeStack, writeLocals :: Ident -> Basic -> m ()
+        writeSymbol :: Ident -> Basic -> m ()
 
 
     -- | Runs a given core method given arguments and a return point.
@@ -132,7 +130,7 @@ where
         -> CoreExpression m             -- ^ Expression to evaluate.
         -> m ()                         -- ^ Evaluation action.
     evalExpression tmp retPt expr = case expr of
-        IVar var        -> (readTemp tmp var >>= evalExpression tmp retPt) <|> (readStack var >>= retPt)
+        IVar var        -> (readTemp tmp var >>= evalExpression tmp retPt) <|> (readSymbol var >>= retPt)
         IVal val        -> retPt val 
         IOp f args      -> evalExpressionlist tmp args [] $ (\bscs -> f bscs >>= retPt)
         IFunc name args -> evalExpressionlist tmp args [] $ (callProcedure name retPt)
@@ -163,7 +161,7 @@ where
     runImperative []        _     = fail "ERROR CORE.IMPERATIVE unexpected end of program."
     runImperative (s:stmts) retPt = case s of 
         ident := expr -> 
-            evalExpression [] (\bsc -> writeStack ident bsc >> runImperative stmts retPt) expr 
+            evalExpression [] (\bsc -> writeSymbol ident bsc >> runImperative stmts retPt) expr 
         IIf cond thenBlock elseBlock -> 
             evalExpression [] (\bsc -> toBoolean bsc >>= \cond -> runImperative ((if cond then thenBlock else elseBlock) ++ stmts) retPt) cond
         IWhile cond block ->
@@ -185,7 +183,7 @@ where
         => [(Ident, CoreExpression m)]  -- ^ Temporary auxiliary symbol table.
         -> CoreExpression m             -- ^ Expression to evaluate.
         -> m ()                         -- ^ List of possible results.
-    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readStack id >>= setReturnValue)
+    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readSymbol id >>= setReturnValue)
         where 
             readTemp tmp = case id `lookup` tmp of
                 Nothing -> fail $ "Cannot find " ++ id ++ " in TMP."
@@ -233,7 +231,7 @@ where
         where 
             run [] = fail "ERROR CORE.IMPERATIVE no return"
             run (stmt:stmts) = case stmt of
-                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeStack ident basic >> run stmts)
+                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeSymbol ident basic >> run stmts)
                 IIf cond b1 b2 -> do
                     cond' <- evalToBoolean cond
                     if cond' then run (b1 ++ stmts) else run (b2 ++ stmts)
