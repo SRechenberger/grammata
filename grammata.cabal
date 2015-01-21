@@ -10,7 +10,7 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Sascha Rechenberger
 maintainer:          sascha.rechenberger@uni-ulm.de
-copyright:           2014 Sascha Rechenberger
+copyright:           Sascha Rechenberger 2014, 2015 
 category:            Interpreter
 build-type:          Simple
 cabal-version:       >=1.8
