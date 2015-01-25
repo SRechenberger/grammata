@@ -81,13 +81,16 @@ where
 
     -- | AST @SIMPLE@; except @Appl@, which is the AST for @LAMBDA@.
     data Lambda  
-        = Symbol String
-        | Value Value
-        | Arith (Expression Lambda)
-        | Cond Lambda Lambda Lambda
-        | Abstr [String] Lambda
-        | Appl Lambda [Lambda]  
-        | Let [(String, Lambda)] Lambda
+        = Fun_Symbol String
+        | Fun_Value Value
+        | Fun_Arith (Expression Lambda)
+        | Fun_Cond Lambda Lambda Lambda
+        | Fun_Abstr [String] Lambda
+        | Fun_Appl Lambda [Lambda]  
+        | Fun_Let [(String, Lambda)] Lambda
+        | Fun_Backtrack
+        | Fun_Remind  
+        | Fun_Keep Lambda
         deriving (Eq)
 
     instance Arbitrary Lambda where
@@ -107,20 +110,20 @@ where
                                     then 5 
                                     else 6
             case dice' of
-                0 -> Symbol <$> var
-                1 -> Value <$> arbitrary 
+                0 -> Fun_Symbol <$> var
+                1 -> Fun_Value <$> arbitrary 
                 2 -> arbitrary >>= \e -> case e of
                     Const x -> pure x 
-                    others  -> Arith <$> pure others 
-                3 -> Cond <$> arbitrary <*> arbitrary <*> arbitrary
-                4 -> Abstr <$> listOf1 var <*> arbitrary
+                    others  -> Fun_Arith <$> pure others 
+                3 -> Fun_Cond <$> arbitrary <*> arbitrary <*> arbitrary
+                4 -> Fun_Abstr <$> listOf1 var <*> arbitrary
                 5 -> do 
-                    f <- Arith <$> arbitrary 
+                    f <- Fun_Arith <$> arbitrary 
                     as <- listOf arbitrary
                     pure $ case as of 
                         [] -> f 
-                        as -> Appl f as                         
-                6 -> Let <$> listOf1 ((,) <$> var <*> arbitrary) <*> arbitrary
+                        as -> Fun_Appl f as                         
+                6 -> Fun_Let <$> listOf1 ((,) <$> var <*> arbitrary) <*> arbitrary
             where 
                 var = do 
                     x <- choose ('a','z')
@@ -128,13 +131,16 @@ where
                     pure (x:xs)
 
     instance Show Lambda where
-        show (Symbol s) = '$':s 
-        show (Value v)  = "" ++ show v ++ ""
-        show (Arith e)  = "" ++ show e ++ ""
-        show (Cond c e1 e2) = "(if " ++ show c ++ " then " ++ show e1 ++ " else " ++ show e2 ++ " end)"
-        show (Abstr ss e) = "(\\" ++ (unwords . map ('$':) $ ss) ++ " . " ++ show e ++ ")"
-        show (Appl f as) = "(" ++ show f ++ " " ++ (unwords . map show $ as) ++ ")"
-        show (Let defs e) = "(let " ++ (unwords . map (\(s,e) -> ('$':s) ++ " := " ++ show e ++ ";") $ defs) ++ " in " ++ show e ++ " end)"
+        show (Fun_Symbol s) = '$':s 
+        show (Fun_Value v)  = "" ++ show v ++ ""
+        show (Fun_Arith e)  = "" ++ show e ++ ""
+        show (Fun_Cond c e1 e2) = "(if " ++ show c ++ " then " ++ show e1 ++ " else " ++ show e2 ++ " end)"
+        show (Fun_Abstr ss e) = "(\\" ++ (unwords . map ('$':) $ ss) ++ " . " ++ show e ++ ")"
+        show (Fun_Appl f as) = "(" ++ show f ++ " " ++ (unwords . map show $ as) ++ ")"
+        show (Fun_Let defs e) = "(let " ++ (unwords . map (\(s,e) -> ('$':s) ++ " := " ++ show e ++ ";") $ defs) ++ " in " ++ show e ++ " end)"
+        show (Fun_Backtrack) = "backtrack"
+        show (Fun_Remind) = "remind"
+        show (Fun_Keep e) = "(keep " ++ show e ++ ")"
 
 
     -- | Parses @FUNCTIONAL@.
@@ -143,9 +149,9 @@ where
         where
             extract :: Expression Lambda -> Lambda 
             extract (Const e) = case e of 
-                Arith e -> extract e 
+                Fun_Arith e -> extract e 
                 others  -> others 
-            extract others = Arith others
+            extract others = Fun_Arith others
 
             token :: String -> Parser String 
             token s = try (spaces *> string s <* spaces)
@@ -159,7 +165,7 @@ where
                 es <- map extract <$> manyTill arith (follow [",", "end", ")", ";", "then", "else"] <|> (eof >> pure "#"))
                 pure $ case es of 
                     [] -> e 
-                    es -> Appl e es
+                    es -> Fun_Appl e es
 
             arith :: Parser (Expression Lambda)
             arith = chainl1 disj (token "||" >> pure (\e1 e2 -> BinOp e1 "||" e2))
@@ -181,27 +187,34 @@ where
                 unop <- (UnOp <$> (token "-" <|> token "!")) <|> pure id  
                 e <- simple 
                 pure . unop $ case e of
-                    Arith e -> e 
+                    Fun_Arith e -> e 
                     others  -> Const others
 
             ident :: Parser String
             ident = (:) <$> lower <*> many alphaNum
 
             simple :: Parser Lambda
-            simple = spaces >> lookAhead ((choice . map token $ ["\\", "if", "let", "(", "$", "true", "false"]) <|> ((:[]) <$> anyChar)) >>= \la -> case la of 
-                "\\"   -> Abstr <$> (token "\\" *> manyTill (spaces >> char '$' >> ident) (lookAhead (token "."))) <*> (token "." *> lambda)
-                "if"   -> Cond <$> (token "if" *> lambda) <*> (token "then" *> lambda) <*> (token "else" *> lambda) <* token "end"
-                "let"  -> Let <$> (token "let" *> manyTill ((,) <$> (spaces *> char '$' *> ident) <*> (token ":=" *> lambda) <* token ";") (lookAhead (token "in"))) <*> (token "in" *> lambda) <* token "end"
+            simple = spaces >> lookAhead ((choice . map token $ ["\\", "if", "let", "(", "$", "true", "false", "keep", "backtrack", "remind"]) <|> ((:[]) <$> anyChar)) >>= \la -> case la of 
+                "\\"   -> Fun_Abstr <$> (token "\\" *> manyTill (spaces >> char '$' >> ident) (lookAhead (token "."))) <*> (token "." *> lambda)
+                "if"   -> Fun_Cond <$> (token "if" *> lambda) <*> (token "then" *> lambda) <*> (token "else" *> lambda) <* token "end"
+                "let"  -> Fun_Let <$> (token "let" *> manyTill ((,) <$> (spaces *> char '$' *> ident) <*> (token ":=" *> lambda) <* token ";") (lookAhead (token "in"))) <*> (token "in" *> lambda) <* token "end"
                 "("    -> token "(" *> lambda <* token ")"
-                "$"    -> Symbol <$> (spaces *> char '$' *> ident)
-                "true" -> token "true" >> pure (Value . Boolean $ True)
-                "false"-> token "false" >> pure (Value . Boolean $ False)
-                [c] | isDigit c -> Value <$> value 
-                    | isLower c -> Arith <$> func 
+                "$"    -> Fun_Symbol <$> (spaces *> char '$' *> ident)
+                "true" -> token "true" >> pure (Fun_Value . Boolean $ True)
+                "false"-> token "false" >> pure (Fun_Value . Boolean $ False)
+                "keep" -> token "keep" >> Fun_Keep <$> lambda
+                "backtrack" -> token "backtrack" >> pure Fun_Backtrack
+                "remind" -> token "remind" >> pure (Fun_Arith Remind)
+                [c] | isDigit c -> Fun_Value <$> value 
+                    | isLower c -> Fun_Arith <$> func
                     | otherwise -> fail $ "Unexpected " ++ show c ++ "." 
 
             func :: Parser (Expression Lambda)
-            func = Func <$> ident <*> ((token "(" *> sepBy (Const <$> lambda) (token ",") <* token ")" ) <|> pure [])
+        --    func = Func <$> ident <*> ((token "(" *> sepBy (Const <$> lambda) (token ",") <* token ")" ) <|> pure [])
+            func = do
+                i <- ident 
+                br <- (token "(" *> sepBy (Const <$> lambda) (token ",") <* token ")" ) <|> pure [] 
+                return (Func i br)
 
 
 -- QUICKCHECK STUFF

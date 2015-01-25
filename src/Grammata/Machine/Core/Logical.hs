@@ -36,13 +36,13 @@ module Grammata.Machine.Core.Logical
     CoreGoal (..), 
     CoreClause (..),
     CoreRule (..),
-    CoreQuery (..),
+    -- CoreQuery (..),
 
     -- ** Auxiliary functions
     lVar,
 
     -- * Calling
-    askQuery
+    runLogicalSubprogram
 
 )
 where 
@@ -56,12 +56,12 @@ where
     import Control.Applicative ((<$>), (<*>), (<|>), pure)
     import Control.Monad (forM)
 
-    import Grammata.Machine.Core.Class (Ident, GrammataCore (..))
+    import Grammata.Machine.Core.Class (Ident, CoreGeneral (..))
     import Grammata.Machine.Core.Types (Basic (..))
 
 
     -- | Necessary functions, which must be provided by the monad @m@ to evaluate logical subprograms.
-    class GrammataCore m => CoreLogical m where
+    class CoreGeneral m => CoreLogical m where
         -- | Loads a base by its name.
         getBase :: Ident -> m [CoreRule]
 
@@ -165,12 +165,12 @@ where
 
     {- | A parameterized rule, asking a list of bases for a given clause list, 
          and returning either just a boolean or, if a binding for a certain variable was sought, its binding. -}
-    data CoreQuery = Query [Ident] (Maybe Ident) [Ident] [CoreClause] 
+    -- data CoreQuery = Query [Ident] (Maybe Ident) [Ident] [CoreClause] 
 
-    instance Show CoreQuery where
-        show (Query ps mI bs cs) = case mI of 
-            Nothing -> show bs ++ " ?- " ++ show cs ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
-            Just s  -> show bs ++ " ?- " ++ show cs ++ " for " ++ show s ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
+    -- instance Show CoreQuery where
+    --     show (Query ps mI bs cs) = case mI of 
+    --         Nothing -> show bs ++ " ?- " ++ show cs ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
+    --         Just s  -> show bs ++ " ?- " ++ show cs ++ " for " ++ show s ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
 
 
     -- | Generates a new logical variable packed in a term.
@@ -199,7 +199,7 @@ where
         Var (v :$ _)  -> retPt $ Struct ('#':v) 0 []
         LFun n i as 
             | i == 0    -> (readSymbol n <|> pure (Struct n 0 [])) >>= retPt
-            | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
+            | otherwise -> termToBasicList as [] $ \bscs -> (call n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
 
 
     -- | Converts a list of terms to basic values.
@@ -320,12 +320,15 @@ where
         search gs base s retPt
 
     -- | Asks a query under given arguments.
-    askQuery :: (CoreLogical m)
-        => CoreQuery        -- ^ Query to ask.
+    runLogicalSubprogram :: (CoreLogical m)
+        => [Ident]
+        -> Maybe Ident 
+        -> [Ident]
+        -> [CoreClause]     -- ^ Query to ask.
         -> [Basic]          -- ^ Arguments.
         -> (Basic -> m ())  -- ^ Returning point.
         -> m ()             -- ^ Remaining program action.
-    askQuery (Query params sought bases clauses) args retPt = let p_as = params `zip` args in do 
+    runLogicalSubprogram params sought bases clauses args retPt = let p_as = params `zip` args in do 
         enter p_as
         allBases <- prepareBase . concat <$> mapM getBase bases 
         clauses' <- prepareClauses clauses

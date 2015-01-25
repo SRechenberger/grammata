@@ -35,13 +35,13 @@ where
 
     import Grammata.Machine (
         imperative, functional, query, base, Subprogram,
-        iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVal, iVar, iOp, iFunc, CoreStatement, CoreExpression,
-        fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, CoreLambda,
+        iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVal, iVar, iOp, iFunc, iKeep, iRemind, CoreStatement, CoreExpression,
+        fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, fKeep, fBackTrack, fRemind, CoreLambda,
         lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
         bBool, bNat, bReal, bStruct, bNull, Basic, (=:=), (=/=),
         Machine, Ident
         )
-    import qualified Grammata.Machine as M (Basic (Natural, Boolean, Real))
+    import qualified Grammata.Machine as M (Basic (Natural, Boolean, Real, Struct))
     import Grammata.Language(
         Program (..),
         Value (..),
@@ -86,7 +86,7 @@ where
     compileSubprogram :: ()
         => Subprg
         -> COMPILER (Subprogram Machine)
-    compileSubprogram (Procedure ret params locals stmts) = do 
+    compileSubprogram (Procedure params locals stmts) = do 
         locals' <- forM locals $ \(ident, expr) -> case expr of
             Nothing -> return (ident, iVal bNull)
             Just e  -> do 
@@ -145,6 +145,7 @@ where
     compileLogicalExpression (BinOp e1 op e2) = lFun op <$> mapM compileLogicalExpression [e1,e2]
     compileLogicalExpression (UnOp op e) = lFun op <$> mapM compileLogicalExpression [e]
     compileLogicalExpression (Func name es) = lFun name <$> mapM compileLogicalExpression es
+    compileLogicalExpression Remind = fail $ "ERROR remind is not allowed in logical subprograms."
 
 
     compileClause :: ()
@@ -159,18 +160,21 @@ where
     compileLambda :: ()
         => Lambda 
         -> COMPILER (CoreLambda Machine)
-    compileLambda (Symbol sym) = fVar <$> pure sym 
-    compileLambda (Value val) = fConst <$> compileBasicValue val 
-    compileLambda (Cond c a b) = fIf <$> compileLambda c <*> compileLambda a <*> compileLambda b 
-    compileLambda (Abstr ids e) = fAbs ids <$> compileLambda e 
-    compileLambda (Appl f as) = fApp <$> compileLambda f <*> mapM compileLambda as 
-    compileLambda (Let defs e) = do 
+    compileLambda (Fun_Symbol sym) = fVar <$> pure sym 
+    compileLambda (Fun_Value val) = fConst <$> compileBasicValue val 
+    compileLambda (Fun_Cond c a b) = fIf <$> compileLambda c <*> compileLambda a <*> compileLambda b 
+    compileLambda (Fun_Abstr ids e) = fAbs ids <$> compileLambda e 
+    compileLambda (Fun_Appl f as) = fApp <$> compileLambda f <*> mapM compileLambda as 
+    compileLambda (Fun_Let defs e) = do 
         defs' <- forM defs $ \(id, def) -> do 
             def' <- compileLambda def 
             return (id, def')
         e' <- compileLambda e 
         return (fLet defs' e')
-    compileLambda (Arith expr) = compileFunctionalExpression expr 
+    compileLambda (Fun_Arith expr) = compileFunctionalExpression expr 
+    compileLambda (Fun_Keep expr) = fKeep <$> compileLambda expr
+--    compileLambda (Fun_Remind) = pure fRemind
+    compileLambda (Fun_Backtrack) = pure fBackTrack
 
 
     compileFunctionalExpression :: ()
@@ -180,55 +184,57 @@ where
     compileFunctionalExpression (BinOp l1 op l2) = fOp <$> compileBinaryOperator op <*> mapM compileFunctionalExpression [l1,l2]
     compileFunctionalExpression (UnOp op l) = fOp <$> compileUnaryOperator op <*> mapM compileFunctionalExpression [l]
     compileFunctionalExpression (Func name as) = fCall name <$> mapM compileFunctionalExpression as
+    compileFunctionalExpression Remind = pure fRemind
 
 
     compileImperativeStatement :: ()
         => Statement 
         -> COMPILER [CoreStatement Machine]
-    compileImperativeStatement (ident := expr) = do 
+    compileImperativeStatement (Imp_Assign ident expr) = do 
         expr' <- compileImperativeExpression expr 
         return [iAssignment ident expr']
         
-    compileImperativeStatement (For cnt init limit step stmts) = do 
+    compileImperativeStatement (Imp_For cnt init limit step stmts) = do 
         init' <- case init of
             Nothing -> return []
-            Just e  -> compileImperativeStatement (cnt := e)
+            Just e  -> compileImperativeStatement (Imp_Assign cnt e)
         stmts' <- concat <$> mapM compileImperativeStatement stmts
         step' <- let 
             stepWidth = case step of 
                 Nothing -> Const $ Natural 1
                 Just s  -> s
-            in compileImperativeStatement (cnt := BinOp (Const $ Variable cnt) "+" stepWidth)
+            in compileImperativeStatement (Imp_Assign cnt (BinOp (Const $ Variable cnt) "+" stepWidth))
         cond <- compileImperativeExpression (BinOp (Const $ Variable cnt) "<=" limit)
         return $ init' ++ [iWhile cond (stmts' ++ step')] 
         
-    compileImperativeStatement (DoWhile stmts cond) = do 
+    compileImperativeStatement (Imp_DoWhile stmts cond) = do 
         stmts' <- concat <$> mapM compileImperativeStatement stmts
         cond' <- compileImperativeExpression cond 
         return $ stmts' ++ [iWhile cond' stmts']
         
-    compileImperativeStatement (While cond stmts) = do
+    compileImperativeStatement (Imp_While cond stmts) = do
         cond' <- compileImperativeExpression cond 
         stmts' <- concat <$> mapM compileImperativeStatement stmts
         return [iWhile cond' stmts']
         
-    compileImperativeStatement (If cond thenBlock elseBlock) = do 
+    compileImperativeStatement (Imp_If cond thenBlock elseBlock) = do 
         cond' <- compileImperativeExpression cond 
         thenBlock' <- concat <$> mapM compileImperativeStatement thenBlock
         elseBlock' <- concat <$> mapM compileImperativeStatement elseBlock
         return [iIf cond' thenBlock' elseBlock']
         
-    compileImperativeStatement (Call ident exprs) = do 
+    compileImperativeStatement (Imp_Call ident exprs) = do 
         exprs' <- mapM compileImperativeExpression exprs 
         return [iCall ident exprs'] 
         
-    compileImperativeStatement (Return expr) = do 
+    compileImperativeStatement (Imp_Return expr) = do 
         expr' <- compileImperativeExpression expr 
         return [iReturn expr']
-        
-    compileImperativeStatement Exit = return [iReturn (iVal bNull)]
     
-    compileImperativeStatement Backtrack = return [iTrackBack]
+    compileImperativeStatement Imp_Backtrack = return [iTrackBack]
+
+    compileImperativeStatement (Imp_Keep e) = (:[]) <$> (iKeep <$> compileImperativeExpression e)
+
 
     
     compileGlobals :: ()
@@ -258,6 +264,7 @@ where
         e'  <- compileImperativeExpression e 
         return $ iOp op' [e']
     compileImperativeExpression (Func id es) = iFunc id <$> mapM compileImperativeExpression es 
+    compileImperativeExpression Remind = return iRemind
 
 
     compileBinaryOperator :: ()
@@ -282,7 +289,7 @@ where
     compileBinaryOperator "<" = return $ \ops -> case ops of 
         [M.Natural a, M.Natural b] -> return . M.Boolean $ a < b 
         [M.Real a, M.Real b]       -> return . M.Boolean $ a < b
-        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '+'."
+        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '<'."
     compileBinaryOperator "<=" = return $ \ops -> case ops of 
         [M.Natural a, M.Natural b] -> return . M.Boolean $ a <= b 
         [M.Real a, M.Real b]       -> return . M.Boolean $ a <= b
@@ -290,11 +297,11 @@ where
     compileBinaryOperator ">=" = return $ \ops -> case ops of 
         [M.Natural a, M.Natural b] -> return . M.Boolean $ a >= b 
         [M.Real a, M.Real b]       -> return . M.Boolean $ a >= b
-        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '/'."  
+        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '>='."  
     compileBinaryOperator ">" = return $ \ops -> case ops of 
         [M.Natural a, M.Natural b] -> return . M.Boolean $ a > b 
         [M.Real a, M.Real b]       -> return . M.Boolean $ a > b
-        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '/'."   
+        others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '>'."   
     compileBinaryOperator "||" = return $ \ops -> case ops of 
         [M.Boolean a, M.Boolean b] -> return . M.Boolean $ a || b 
         others                 -> fail $ "ERROR " ++ show others ++ " are no valid operands for '||'." 
@@ -307,6 +314,11 @@ where
     compileBinaryOperator "==" = return $ \ops -> case ops of 
         [a,b]  -> M.Boolean <$> a =:= b 
         others -> fail $ "ERROR " ++ show others ++ " are no valid operands for '=='." 
+    compileBinaryOperator ":" = return $ \ops -> case ops of
+        [a,tail@(M.Struct "cons" 2 as)] -> return $ M.Struct "cons" 2 [a,tail]
+        [a,tail@(M.Struct "nil" 0 [])] -> return $ M.Struct "cons" 2 [a,tail]
+        others -> fail $ "ERROR " ++ show others ++ " cannot be a list."
+
 
 
     compileUnaryOperator :: ()
@@ -319,6 +331,12 @@ where
         [M.Natural a] -> return . M.Natural . negate $ a 
         [M.Real a]    -> return . M.Real . negate $ a 
         others      -> fail $ "ERROR " ++ show others ++ " are no valid operands for '-'."
+    compileUnaryOperator "." = return $ \ops -> case ops of
+        [M.Struct "cons" 2 [a,t]] -> return a 
+        others        -> fail $ "ERROR " ++ show others ++ " has no head."
+    compileUnaryOperator "%" = return $ \ops -> case ops of
+        [M.Struct "cons" 2 [_,t]] -> return t 
+        others        -> fail $ "ERROR " ++ show others ++ " has no tail."
 
 
     compileBasicValue :: ()

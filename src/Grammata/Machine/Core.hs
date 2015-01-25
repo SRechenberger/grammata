@@ -35,13 +35,13 @@ module Grammata.Machine.Core
     -- * Core Language
     runProgram, Basic (..), (=:=), (=/=),
     -- ** Imperative
-    CoreStatement (..), CoreMethod (..), CoreExpression (..),
+    CoreStatement (..), CoreExpression (..),
 
     -- ** Functional
-    CoreLambda (..), CoreLambdaMethod (..),
+    CoreLambda (..), 
 
     -- ** Logical
-    CoreRule (..), CoreClause (..), CoreGoal (..), CoreQuery (..), CoreTerm (..), lVar
+    CoreRule (..), CoreClause (..), CoreGoal (..), CoreTerm (..), lVar
 )
 where   
 
@@ -49,13 +49,13 @@ where
 
     import Data.Map (toList)
 
-    import Control.Applicative ((<$>))
+    import Control.Applicative ((<$>), (<|>))
     import Control.Monad.State (modify, gets)
 
-    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
-    import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runCoreMethod, evalExpressionlist, CoreImperative (..), CoreMethod (..))
-    import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), CoreLambdaMethod (..), runLambda, reduce)
-    import Grammata.Machine.Core.Logical (CoreLogical (..), askQuery, CoreQuery (..), CoreRule (..), CoreClause (..), CoreGoal (..), CoreTerm (..), lVar)
+    import Grammata.Machine.Core.Class (CoreGeneral (..), Ident, Pointer)
+    import Grammata.Machine.Core.Imperative (CoreStatement (..), CoreExpression (..), runImperativeSubprogram, evalExpressionlist, CoreImperative (..))
+    import Grammata.Machine.Core.Functional (CoreFunctional (..), CoreLambda (..), runFunctionalSubprogram, reduce)
+    import Grammata.Machine.Core.Logical (CoreLogical (..), runLogicalSubprogram, CoreRule (..), CoreClause (..), CoreGoal (..), CoreTerm (..), lVar)
     import Grammata.Machine.Core.Types (Basic (..), (=:=), (=/=))
 
     import Grammata.Machine.Grammateion (Grammateion, runGrammateion, get, put, ask, liftIO)
@@ -70,11 +70,11 @@ where
     -- | Union type for subprograms.
     data Subprogram m = 
         -- | Imperative subprogram; i.e. functions or procedures.
-          Imperative (CoreMethod m)
+          Imperative [(Ident, CoreExpression m)] [Ident] [CoreStatement m]
         -- | Functional subprogram; i.e. a lambda expression.
-        | Functional (CoreLambdaMethod m) 
+        | Functional (CoreLambda m) [Ident] 
         -- | Logical subprogram; i.e. a query
-        | Logical CoreQuery
+        | Logical [Ident] (Maybe Ident) [Ident] [CoreClause]
         -- | Knowledge bases
         | Base [CoreRule]
 
@@ -92,29 +92,24 @@ where
     -- | Shortcut for the execution monad.
     type Machine = Grammateion Dict Storage
 
-    instance GrammataCore (Grammateion Dict Storage) where
-        -- callProcedure :: Ident -> (Basic -> m ()) -> [Basic] -> m ()
-        callProcedure name retPt args = do 
+    instance CoreGeneral (Grammateion Dict Storage) where
+        -- call :: Ident -> (Basic -> m ()) -> [Basic] -> m ()
+        call name retPt args = do 
             Dict dict <- ask 
             case name `lookup` dict of 
                 Nothing -> retPt $ Struct name (length args) args
                 Just meth -> case meth of 
-                    Imperative method -> runCoreMethod method args retPt
-                    Functional lambda -> runLambda lambda args retPt
-                    Logical query     -> askQuery query args retPt
+                    Imperative locals params stmts -> runImperativeSubprogram locals params stmts args retPt
+                    Functional lambda params -> runFunctionalSubprogram lambda params args retPt
+                    Logical params sought bases clauses -> runLogicalSubprogram params sought bases clauses args retPt
                     Base _            -> fail $ "ERROR CORE cannot run knowledge base " ++ name ++ " as procedure."
         setBacktrackPoint btp = do 
-            state <- get 
-            t <- (return . trail) state >>= pushBacktrackPoint (stack state, btp) 
-            put state {trail = t}
-        trackback = do 
-            state <- get 
-            returns <- popBacktrackPoint . trail $ state
-            case returns of
-                Nothing -> return ()
-                Just (t, (s,btp)) -> do
-                    put state {stack = s, trail = t}
-                    btp
+            s <- gets stack
+            t' <- gets trail >>= pushBacktrackPoint (s, btp)
+            modify $ \s -> s {trail = t'}
+        trackback = let 
+            success t = popBacktrackPoint t >>= \(t', (s,btp)) -> modify (\state -> state {stack = s, trail = t'}) >> btp 
+            in (gets trail >>= success) <|> return ()
         enter frame = do
             state <- get
             s <- (return . stack) state >>= pushFrame frame
@@ -175,7 +170,7 @@ where
                     let s = stack state 
                     s' <- (names `zip` bscs) `setGlob` s
                     put state {stack = s'}
-                    flip (callProcedure "main") [] $ \bsc -> do 
+                    flip (call "main") [] $ \bsc -> do 
                         liftIO . putStrLn $ show bsc ++ " ?"
                         c <- liftIO getChar
                         liftIO . putStrLn $ ""
@@ -252,6 +247,6 @@ where
 --    testQuery3 = Query [] (Just "F") ["b3"] [LGoal . LPred "fak" 2 $ [LFun "mult" 2 [Atom (Natural 0)], LFun "mult" 2 [lVar "F"]]]
 --  
 --  runtestQ1 = runGrammateion 
---      (askQuery testQuery3 [])
+--      (runLogicalSubprogram testQuery3 [])
 --      (Dict [("b3", Base testBase3)])
 --      (Storage newIStorage newFStorage) >>= return . fst 

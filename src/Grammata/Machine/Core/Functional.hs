@@ -31,9 +31,9 @@ module Grammata.Machine.Core.Functional
     CoreFunctional (..),
 
     -- * Core lambda expression AST.
-    CoreLambda (..), CoreLambdaMethod (..), 
+    CoreLambda (..), 
     -- ** Reducing lambda-programs.
-    runLambda, reduce
+    runFunctionalSubprogram, reduce
 )
 where 
 
@@ -42,13 +42,13 @@ where
     import Prelude hiding (toInteger)
 
     import Grammata.Machine.Core.Types (Basic (..), toBoolean, toInteger)
-    import Grammata.Machine.Core.Class (GrammataCore (..), Pointer, Ident)
+    import Grammata.Machine.Core.Class (CoreGeneral (..), Pointer, Ident)
 
     import Control.Applicative ((<*>), (<$>), pure, (<|>))
 
     import Data.List (intercalate)
 
-    data CoreLambdaMethod m = CLM (CoreLambda m) [Ident]
+    -- data CoreLambdaMethod m = CLM (CoreLambda m) [Ident]
 
     -- | Core language lambda expressions.
     data CoreLambda m = 
@@ -78,20 +78,20 @@ where
 
 
     instance Show (CoreLambda m) where
-        show (FVar ident) = "var(" ++ ident ++ ")"
-        show (FConst bsc) = "basic(" ++ show bsc ++ ")" 
-        show (FIf ec et ee) = "(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
-        show (FOp _ args) = "(" ++ intercalate " `op` " (map show args) ++ ")"
-        show (FCall i args) = "(call " ++ i ++ " " ++ unwords (map show args) ++ ")"
-        show (FLet defs e) = "(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
-        show (FApp e args) = "(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
-        show (FAbs ids e) = "(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
-        show (FKeep e) = "(keep " ++ show e ++ ")"
-        show (FRemind) = "remind"
-        show (FBackTrack) = "backtrack"
+        show (FVar ident) = "1var(" ++ ident ++ ")"
+        show (FConst bsc) = "2basic(" ++ show bsc ++ ")" 
+        show (FIf ec et ee) = "3(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
+        show (FOp _ args) = "4(" ++ intercalate " `op` " (map show args) ++ ")"
+        show (FCall i args) = "5(call " ++ i ++ " " ++ unwords (map show args) ++ ")"
+        show (FLet defs e) = "6(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
+        show (FApp e args) = "8(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
+        show (FAbs ids e) = "9(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
+        show (FKeep e) = "A(keep " ++ show e ++ ")"
+        show (FRemind) = "Bremind"
+        show (FBackTrack) = "Cbacktrack"
 
     -- | Functional core language evaluation monad class.
-    class GrammataCore m => CoreFunctional m where
+    class CoreGeneral m => CoreFunctional m where
         -- | Deposes a new expression as closure on the heap.
         new      :: CoreLambda m -> m Pointer
         -- | Allocates an empty closure cell on the heap.
@@ -188,7 +188,7 @@ where
             reduceList as [] (\bscs -> op bscs >>= retPt . FConst)
 
         FCall id as -> 
-            reduceList as [] (callProcedure id $ retPt . FConst)
+            reduceList as [] (call id $ retPt . FConst)
 
         FLet defs e -> let (is, es) = unzip defs in do 
             ptrs <- mapM (const alloc) defs 
@@ -196,9 +196,9 @@ where
             mapM_ (\(p,e) -> rewrite p $ foldr subst e ip) (ptrs `zip` es) 
             reduce (foldr subst e ip) retPt 
 
-        FApp f args -> case args of 
-            []   -> reduce f retPt
-            args -> bind f args (\expr -> reduce expr retPt)
+        FApp f args -> reduce f $ \f' -> case args of 
+            []   -> retPt f'
+            args -> bind f' args (\expr -> reduce expr retPt)
 
         FKeep expr -> FConst . HeapObj <$> new expr >>= flip reduce retPt
 
@@ -259,12 +259,13 @@ where
     replaceFree others _ = pure others
 
     -- | Calls a lambda and reduces it to a basic value (also to pointers).
-    runLambda :: (CoreFunctional m)
-        => CoreLambdaMethod m   -- ^ Expression to reduce.
+    runFunctionalSubprogram :: (CoreFunctional m)
+        => CoreLambda m
+        -> [Ident]   -- ^ Expression to reduce.
         -> [Basic]              -- ^ Arguments.
         -> (Basic -> m ())      -- ^ Returning point.
         -> m ()                 -- ^ Program action.
-    runLambda (CLM lambda params) args retPt = do 
+    runFunctionalSubprogram lambda params args retPt = do 
         enter (params `zip` args) 
         lambda' <- replaceFree lambda [] 
         reduceToBasic lambda' $ \bsc -> do

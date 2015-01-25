@@ -54,7 +54,7 @@ where
 
     -- | Combination monad of Reader, State and Either; able to hold some constant environment and a mutable state and to terminate.
     newtype Grammateion dict state a = Grammateion {
-        runGrammateion :: (dict -> state -> IO (Either String (a, state))) -- ^ Runs a grammateion monad.
+        runGrammateion :: dict -> state -> IO (Either String (a, state)) -- ^ Runs a grammateion monad.
         }
 
     instance Functor (Grammateion d s) where

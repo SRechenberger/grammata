@@ -39,8 +39,9 @@
 -- >              | call IDENT({ EXPRESSION { , EXPRESSION }*}?) ;
 -- >              | IDENT := EXPRESSION ;
 -- >              | return EXPRESSION ; 
--- >              | exit ; 
 -- >              | backtrack ;
+-- >              | keep EXPRESSION ;
+-- >              | remind ;
 ---------------------------------------------------------------------------
 
 
@@ -66,15 +67,15 @@ where
 
     -- | AST @STMT@.
     data Statement  
-        = String := Expression Value
-        | For String (Maybe (Expression Value)) (Expression Value) (Maybe (Expression Value)) [Statement]
-        | DoWhile [Statement] (Expression Value) 
-        | While (Expression Value) [Statement]
-        | If (Expression Value) [Statement] [Statement]
-        | Call String [Expression Value]
-        | Return (Expression Value)
-        | Exit
-        | Backtrack
+        = Imp_Assign String (Expression Value)
+        | Imp_For String (Maybe (Expression Value)) (Expression Value) (Maybe (Expression Value)) [Statement]
+        | Imp_DoWhile [Statement] (Expression Value) 
+        | Imp_While (Expression Value) [Statement]
+        | Imp_If (Expression Value) [Statement] [Statement]
+        | Imp_Call String [Expression Value]
+        | Imp_Return (Expression Value)
+        | Imp_Backtrack
+        | Imp_Keep (Expression Value)
         deriving (Show, Eq)
 
 
@@ -82,10 +83,9 @@ where
         parseExprVal = value
 
     -- | Parses @IMPERATIVE@.
-    parseImperative :: Parser (Bool, String, [String], [(String, Maybe (Expression Value))], [Statement])
-    parseImperative = (,,,,) 
-        <$> ((token "func" >> pure True) <|> (token "proc" >> pure False)) 
-        <*> ident 
+    parseImperative :: Parser (String, [String], [(String, Maybe (Expression Value))], [Statement])
+    parseImperative = (,,,) 
+        <$> (token "proc" *> ident) 
         <*> between (token "(") (token ")") (sepBy ident (token ",")) 
         <*> ((token "with" *> manyTill decl (lookAhead $ token "does")) <|> pure [])
         <*> (token "does" *> manyTill statement (token "end"))  
@@ -98,29 +98,29 @@ where
 
             decl = (,) <$> (token "var" *> ident) <*> (Just <$> (token ":=" *> parseExpression <* token ";") <|> (token ";" *> pure Nothing))
 
-            statement = lookAhead ((choice . map token $ ["for", "if", "while", "do", "call", "return", "exit", "backtrack"]) <|> ((:[]) <$> anyChar)) >>= \la -> case la of
-                "for"    -> For 
+            statement = lookAhead ((choice . map token $ ["for", "if", "while", "do", "call", "return", "exit", "backtrack", "keep"]) <|> ((:[]) <$> anyChar)) >>= \la -> case la of
+                "for"    -> Imp_For 
                     <$> (token "for" *> ident) 
                     <*> ((token "from" *> (Just <$> parseExpression)) <|> pure Nothing) 
                     <*> (token "to" *> parseExpression) 
                     <*> ((token "in" *> (Just <$> parseExpression)) <|> pure Nothing) 
                     <*> (token "do" *> manyTill statement (token "end"))
-                "if"     -> If 
+                "if"     -> Imp_If 
                     <$> (token "if" *> parseExpression)
                     <*> (token "then" *> manyTill statement (lookAhead (token "else" <|> token "end")))
                     <*> ((token "else" *> manyTill statement (lookAhead (token "end"))) <|> pure [])
                     <*  token "end"
-                "while"  -> While 
+                "while"  -> Imp_While 
                     <$> (token "while" *> parseExpression)
                     <*> (token "do" *> manyTill statement (token "end"))
-                "do"     -> DoWhile 
+                "do"     -> Imp_DoWhile 
                     <$> (token "do" *> manyTill statement (lookAhead $ token "while"))
                     <*> (token "while" *> parseExpression) 
                     <*  token "end"
-                "call"   -> Call <$> (token "call" *> ident) <*> between (token "(") (token ")") (sepBy parseExpression (token ",")) <* token ";"
-                "return" -> Return <$> (token "return" *> parseExpression <* token ";")
-                "exit"   -> token "exit" *> pure Exit <* token ";"
-                "backtrack" -> token "backtrack" *> pure Backtrack <* token ";"
+                "call"   -> Imp_Call <$> (token "call" *> ident) <*> between (token "(") (token ")") (sepBy parseExpression (token ",")) <* token ";"
+                "return" -> Imp_Return <$> (token "return" *> parseExpression <* token ";")
+                "backtrack" -> token "backtrack" *> pure Imp_Backtrack <* token ";"
+                "keep" -> token "keep" >> Imp_Keep <$> parseExpression <* token ";"
                 [c]      -> if isLower c
-                    then (:=) <$> ident <*> (token ":=" *> parseExpression <* token ";")
+                    then Imp_Assign <$> ident <*> (token ":=" *> parseExpression <* token ";")
                     else fail $ "Unexpected " ++ show c ++ "."

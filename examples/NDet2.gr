@@ -1,0 +1,9 @@
+program NDet2 
+begin
+	base nat says
+		nat(n).
+		nat(s(N)) :- nat(N).
+	end
+
+	query main() asks nat for X ?- nat(X) end
+end

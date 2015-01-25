@@ -6,7 +6,7 @@ begin
         X :=: false
     end
 
-    func main() does
+    proc main() does
         if bools() then
             return 1;
         else

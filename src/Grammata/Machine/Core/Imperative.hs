@@ -38,8 +38,7 @@ module Grammata.Machine.Core.Imperative
     CoreExpression (..), evalExpressionlist,
     
     -- * Imperative Method
-    CoreMethod (..),    
-    runCoreMethod
+    runImperativeSubprogram
 )
 where 
 
@@ -47,7 +46,7 @@ where
 
     import Prelude hiding (toInteger)
     
-    import Grammata.Machine.Core.Class (GrammataCore (..), Ident, Pointer)
+    import Grammata.Machine.Core.Class (CoreGeneral (..), Ident, Pointer)
     import Grammata.Machine.Core.Types (Basic (..), toBoolean, toInteger)
 
     import Control.Applicative ((<|>), pure, (<*>), (<$>))
@@ -55,7 +54,7 @@ where
 
 
     -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
-    data CoreMethod m = Method [(Ident, CoreExpression m)] [Ident] [CoreStatement m] 
+    -- data CoreMethod m = Method [(Ident, CoreExpression m)] [Ident] [CoreStatement m] 
 
 
     -- | Imperative core language AST.
@@ -101,18 +100,20 @@ where
 
         
     -- | Imperative core language evaluation monad class.
-    class GrammataCore m => CoreImperative m where
+    class CoreGeneral m => CoreImperative m where
         -- | Writing to the stack, either locally or or generally.
         writeSymbol :: Ident -> Basic -> m ()
 
 
     -- | Runs a given core method given arguments and a return point.
-    runCoreMethod :: (CoreImperative m) 
-        => CoreMethod m     -- ^ Method to execute.
+    runImperativeSubprogram :: (CoreImperative m) 
+        => [(Ident, CoreExpression m)] 
+        -> [Ident] 
+        -> [CoreStatement m]     -- ^ Method to execute.
         -> [Basic]          -- ^ Arguments of the method call.
         -> (Basic -> m ())  -- ^ Returning point.
         -> m ()             -- ^ Remaining program action.
-    runCoreMethod (Method locals params stmts) args retPt = let p_as = params `zip` args in do
+    runImperativeSubprogram locals params stmts args retPt = let p_as = params `zip` args in do
         enter p_as
         let (names, exprs) = unzip locals 
         evalExpressionlist locals exprs [] $ \vals -> let locals' = names `zip` vals in do 
@@ -133,7 +134,7 @@ where
         IVar var        -> (readTemp tmp var >>= evalExpression tmp retPt) <|> (readSymbol var >>= retPt)
         IVal val        -> retPt val 
         IOp f args      -> evalExpressionlist tmp args [] $ (\bscs -> f bscs >>= retPt)
-        IFunc name args -> evalExpressionlist tmp args [] $ (callProcedure name retPt)
+        IFunc name args -> evalExpressionlist tmp args [] $ (call name retPt)
         IRemind         -> remind >>= retPt
 
         where 
@@ -169,7 +170,7 @@ where
         IReturn expr -> 
             evalExpression [] retPt expr
         ICall name exprs -> 
-            evalExpressionlist [] exprs [] $ callProcedure name $ \_ -> 
+            evalExpressionlist [] exprs [] $ call name $ \_ -> 
                 runImperative stmts retPt
         IBackTrack -> 
             trackback
@@ -239,7 +240,7 @@ where
                     cond' <- evalToBoolean cond 
                     if cond' then run $ block ++ stmt:stmts else run stmts
                 IReturn expr -> evalExpression [] expr >>= choice . map return
-                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
+                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> call ident args >> run stmts)
                 BackTrack -> trackBack 
 
     -- | Runs a method as a procedure taking its arguments.
@@ -270,7 +271,7 @@ where
                     case n of 
                         0 -> return ()
                         _ -> fail $ "ERROR CORE.IMPERATIVE exit code " ++ show n ++ "."
-                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> callProcedure ident args >> run stmts)
+                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> call ident args >> run stmts)
                 BackTrack -> trackBack 
 
 -}

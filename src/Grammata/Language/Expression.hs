@@ -75,7 +75,8 @@ where
           Const ast    
         | BinOp (Expression ast) Op (Expression ast) 
         | UnOp Op (Expression ast)                   
-        | Func Op [Expression ast]                  
+        | Func Op [Expression ast] 
+        | Remind                 
         deriving(Eq)    
 
     instance Show ast => Show (Expression ast) where
@@ -83,14 +84,15 @@ where
         show (BinOp e1 op e2) = "(" ++ show e1 ++ " " ++ op ++ " " ++ show e2 ++ ")"
         show (UnOp op e) = "(" ++ op ++ show e ++ ")"
         show (Func op es) = op ++ if null es then "" else "(" ++ intercalate ", " (map show es) ++ ")"
+        show (Remind) = "remind"
 
     instance Functor Expression where
-        fmap f = foldExpression (Const . f) BinOp UnOp Func
+        fmap f = foldExpression (Const . f) BinOp UnOp Func Remind
 
     instance Applicative Expression where
         pure = Const
         treeF <*> Const x = fmap (\f -> f x) treeF
-        treeF <*> treeA   = foldExpression (\x -> treeF <*> pure x) BinOp UnOp Func treeA
+        treeF <*> treeA   = foldExpression (\x -> treeF <*> pure x) BinOp UnOp Func Remind treeA
 
     -- | Fold function for arithmetical parseExpressions.
     foldExpression :: () 
@@ -98,14 +100,16 @@ where
         -> (result -> Op -> result -> result) -- ^ BinOp (Expression ast) Op (Expression ast) 
         -> (Op -> result -> result)           -- ^ UnOp Op (Expression ast) 
         -> (Op -> [result] -> result)         -- ^ Func Op [Expression ast]
+        -> result                             -- ^ Remind
         -> Expression ast                     -- ^ Expression to fold.
         -> result                             -- ^ Folded parseExpression.
-    foldExpression const binop unop func = fold 
+    foldExpression const binop unop func rem = fold 
         where
             fold (Const ast)      = const ast 
             fold (BinOp e1 op e2) = binop (fold e1) op (fold e2)
             fold (UnOp op e)      = unop op (fold e)
             fold (Func op es)     = func op (map fold es)
+            fold (Remind)         = rem
 
 
     -- | Interface for parametrized parsing of arithmetical expressions.
@@ -130,12 +134,14 @@ where
 
     -- | Parses @EXPRESSION@.
     parseExpression :: ParseExprVal value => Parser (Expression value)
-    parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< expr 
+    parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< [":"] <<< expr 
         where 
-            expr = UnOp <$> ((:[]) <$> between spaces spaces (oneOf "-!"))  <*> expr 
+            expr = UnOp <$> ((:[]) <$> between spaces spaces (oneOf "-!.%"))  <*> expr 
+                <|> try (token "remind") *> pure Remind
                 <|> Const <$> try parseExprVal
                 <|> Func <$> ((:) <$> lower <*> many alphaNum) <*> ((try (token "(") *> sepBy parseExpression (token ",") <* token ")") <|> pure [])
                 <|> try (token "(") *> parseExpression <* token ")"
+
 
 
 -- QuickCheck for parsing
