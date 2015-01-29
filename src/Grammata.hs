@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -31,17 +31,20 @@ module Grammata
 )
 where
 
-    import Debug.Trace 
+--    import Debug.Trace 
 
     import Grammata.Language (parseGrammata)
     import Grammata.Interpreter (compileGrammata)
     import Grammata.Machine (runProgram)
 
+    -- | Tries to parse, then compile and execute the given string as a grammata script.
     executeScript :: () 
-        => String 
+        => String -- ^ Script to execute.
         -> IO ()
     executeScript script = case parseGrammata script of
             Left err  -> putStrLn $ "PARSER ERROR " ++ err 
-            Right ast -> case compileGrammata ast of 
+            Right ast -> do 
+                case compileGrammata ast of 
                     Left err  -> putStrLn $ "COMPILER ERROR " ++ err 
-                    Right (subprgs, globs) -> runProgram subprgs globs
+                    Right (subprgs, globs) -> do
+                        runProgram subprgs globs

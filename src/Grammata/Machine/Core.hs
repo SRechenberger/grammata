@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -45,7 +45,7 @@ module Grammata.Machine.Core
 )
 where   
 
-    import Debug.Trace
+--    import Debug.Trace
 
     import Data.Map (toList)
 
@@ -74,7 +74,7 @@ where
         -- | Functional subprogram; i.e. a lambda expression.
         | Functional (CoreLambda m) [Ident] 
         -- | Logical subprogram; i.e. a query
-        | Logical [Ident] (Maybe Ident) [Ident] [CoreClause]
+        | Logical [Ident] Ident [Ident] [CoreClause]
         -- | Knowledge bases
         | Base [CoreRule]
 
@@ -82,7 +82,7 @@ where
     data Dict = Dict [(Ident, Subprogram Machine)]
 
     type Stack = IStorage Ident Basic
-    type Heap = FStorage (CoreLambda Machine)
+    type Heap = FStorage (CoreLambda Machine) 
     type Trail = LStorage BacktrackPoint Machine
     type BacktrackPoint = Stack
 
@@ -99,57 +99,80 @@ where
             case name `lookup` dict of 
                 Nothing -> retPt $ Struct name (length args) args
                 Just meth -> case meth of 
-                    Imperative locals params stmts -> runImperativeSubprogram locals params stmts args retPt
-                    Functional lambda params -> runFunctionalSubprogram lambda params args retPt
+                    Imperative locals params stmts      -> runImperativeSubprogram locals params stmts args retPt
+                    Functional lambda params            -> runFunctionalSubprogram lambda params args retPt
                     Logical params sought bases clauses -> runLogicalSubprogram params sought bases clauses args retPt
-                    Base _            -> fail $ "ERROR CORE cannot run knowledge base " ++ name ++ " as procedure."
+                    Base _                              -> fail $ "ERROR CORE cannot run knowledge base " ++ name ++ " as procedure."
+
         setBacktrackPoint btp = do 
             s <- gets stack
             t' <- gets trail >>= pushBacktrackPoint (s, btp)
-            modify $ \s -> s {trail = t'}
-        trackback = let 
-            success t = popBacktrackPoint t >>= \(t', (s,btp)) -> modify (\state -> state {stack = s, trail = t'}) >> btp 
-            in (gets trail >>= success) <|> return ()
+            modify $ \state -> state {trail = t'}
+
+        trackback = (gets trail >>= success) <|> return ()
+            where 
+                success t = do 
+                    (t', (s,btp)) <- popBacktrackPoint t 
+                    modify $ \state -> state {stack = s, trail = t'}
+                    btp
+
         enter frame = do
             state <- get
             s <- (return . stack) state >>= pushFrame frame
             put state {stack = s}
+
         leave = do 
             state <- get
             s <- (return . stack) state >>= popFrame
             put state {stack = s}
-        keep bsc = modify $ \s -> s { persistent = bsc }
+
+        keep bsc = modify $ \state -> state { persistent = bsc }
+
         remind = gets persistent
+
         readSymbol ident = do
             s <- stack <$> get 
             ident ==> s
 
     instance CoreImperative (Grammateion Dict Storage) where
-        writeSymbol ident val = get >>= \state -> (return . stack) state >>= ident <== val >>= \s -> put state {stack = s}
-    --    writeLocals ident val = get >>= \state -> (return . stack) state >>= ident `writeLoc` val >>= \s -> put state {stack = s}
+        writeSymbol ident val = do
+            s <- gets stack >>= ident <== val 
+            modify $ \state -> state {stack = s}
     
     instance CoreFunctional (Grammateion Dict Storage) where
-        new expr = get >>= \state -> (return . heap) state >>= depose expr >>= \(p,h) -> put state {heap = h} >> return p
-        alloc = get >>= \state -> (return . heap) state >>= Heap.alloc >>= \(p,h) -> put state {heap = h} >> return p
-        rewrite ptr expr = get >>= \state -> (return . heap) state >>= update ptr expr >>= \h -> put state {heap = h}
+        new expr = do
+            (p,h) <- gets heap >>= depose expr 
+            modify $ \state -> state {heap = h}
+            return p
+
+        alloc = do 
+            (p,h) <- gets heap >>= Heap.alloc
+            modify $ \state -> state {heap = h}
+            return p
+
+        rewrite ptr expr = do
+            h <- gets heap >>= update ptr expr False
+            modify $ \state -> state {heap = h}
+
         fromHeap ptr retPt = do
-            state <- get 
-            let h = heap state 
-            (lambda, isBasic) <- load ptr h
-            if isBasic 
-                then retPt lambda 
-                else reduce lambda $ \lambda' -> do
-                    h' <- update ptr lambda' h  
-                    put state {heap = h'}
-                    retPt lambda'
-    --    loadFree = toList . global . stack <$> get 
+            h <- gets heap
+            (lambda, evaluated) <- load ptr h
+            if evaluated 
+                then retPt lambda
+                else do 
+                    reduce lambda $ \lambda' -> do
+                        h' <- update ptr lambda' True h 
+                        modify $ \state -> state {heap = h'}
+                        retPt lambda'
 
     instance CoreLogical (Grammateion Dict Storage) where
-        getBase name = ask >>= \(Dict dict) -> case name `lookup` dict of
-            Nothing -> fail $ "ERROR CORE there is no function " ++ name ++ "."
-            Just f  -> case f of 
-                Base b -> return b
-                _      -> fail $ "ERROR CORE " ++ name ++ " is no knowledge base."
+        getBase name = do 
+            Dict dict <- ask 
+            case name `lookup` dict of
+                Nothing -> fail $ "ERROR CORE there is no function " ++ name ++ "."
+                Just f  -> case f of 
+                    Base b -> return b
+                    _      -> fail $ "ERROR CORE " ++ name ++ " is no knowledge base."
 
     -- | Running a program given as a list of identifier method pairs, where one must be declared as @main@, and a set of global variables.
     runProgram :: () 
@@ -180,73 +203,3 @@ where
                             _    -> trackback
 
 
-
---  TEST STUFF 
---  fak :: CoreMethod Machine
---  fak = Method [] ["n"] [
---          IIf (IOp (\(Natural n:_) -> return . Boolean $ n <= 1) [IVar "n"]) 
---              [IReturn (IVal (Natural 1))] 
---              [IReturn (IOp (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
---                  IVar "n", 
---                  IFunc "fak2" [IOp (\(Natural n1:_) -> return . Natural $ n1 - 1) [IVar "n"]]
---                  ])
---       Fu       ]
---      ]
---    fak' :: CoreLambda Machine
---    fak' = FLet [
---        ("fak", FAbs ["n"] 
---            (FIf 
---                (FOp (\(Natural n:_) -> return . Boolean $ n <= 1) [FVar "n"]) 
---                (FConst (Natural 1)) 
---                (FOp (\(Natural n1:Natural n2:_) -> return . Natural $ n1 * n2) [
---                    FApp (FVar "fak") [FOp (\(Natural n1:_) -> return . Natural $ n1 - 1) [FVar "n"]],
---                    FVar "n"
---                    ])))
---        ] (FApp (FVar "fak") [FConst . Natural $ 5])
---  omega :: CoreLambda Machine
---  omega = FApp o [o]
---      where 
---          o :: CoreLambda Machine
---          o = (FAbs ["o"] (FApp (FVar "o") [(FVar "o")]))
---  noBottom :: CoreLambda Machine
---  noBottom = FApp (FAbs ["a","b"] (FVar "a")) [omega, (FConst . Natural $ 0)]
---  lazyTest :: Either String Basic
---  lazyTest = runGrammateion 
---      (callLambda noBottom []) 
---      (Dict []) 
---      (Storage newIStorage newFStorage) >>= return . fst
---  runfak :: Integer -> Either String Basic
---  runfak n = runGrammateion 
---      (callLambda fak' [Natural n, Natural 42]) 
---      (Dict [("fak2", Functional fak')]) 
---      (Storage newIStorage newFStorage) >>= return . fst
---    testBase :: [CoreRule]
---    testBase = [
---        LPred "p" 1 [LFun "null" 0 []] :- [],
---        LPred "p" 1 [LFun "succ" 1 [lVar "X"]] :- [LGoal $ LPred "p" 1 [lVar "X"]]
---        ] 
---  testBase2 :: [CoreRule]
---  testBase2 = [
---      LPred "p" 1 [lVar "A"] :- [LNot . return . LGoal $ (lVar "A") :=: (LFun "x" 0 [])]
---      ]
---  testBase3 :: [CoreRule]
---  testBase3 = [
---      LPred "p" 1 [lVar "Y"] :- [LOr [[LGoal $ (lVar "Y") :=: (LFun "x" 0 [])], [(LGoal (lVar "Y" :=: LFun "y" 0 []))]]]
---      ]
---    testBase4 :: [CoreRule]
---    testBase4 = [
---        LPred "fak" 2 [Atom (Natural 0), Atom (Natural 1)] :- [],
---        LPred "fak" 2 [Atom (Natural 1), Atom (Natural 1)] :- [],
---        LPred "fak" 2 [LFun "mult" 2 [lVar "N"], LFun "mult" 2 [lVar "F"]] :- [LGoal $ LPred "fak" 2 [lVar "N", lVar "F"]]
---        ]
---    testQuery :: CoreQuery
---    testQuery = Query [] (Just "X") ["b1"] [LGoal $ LPred "p" 1 [LFun "succ" 1 [LFun "succ" 1 [LFun "succ" 1 [lVar "X"]]]]]
---  testQuery2 :: CoreQuery
---  testQuery2 = Query [] Nothing ["b2"] [LOr [[LGoal $ LPred "p" 1 [LFun "x" 0 []]], [LGoal $ LPred "p" 1 [LFun "y" 0 []]]]]
---    testQuery3 :: CoreQuery
---    testQuery3 = Query [] (Just "F") ["b3"] [LGoal . LPred "fak" 2 $ [LFun "mult" 2 [Atom (Natural 0)], LFun "mult" 2 [lVar "F"]]]
---  
---  runtestQ1 = runGrammateion 
---      (runLogicalSubprogram testQuery3 [])
---      (Dict [("b3", Base testBase3)])
---      (Storage newIStorage newFStorage) >>= return . fst 

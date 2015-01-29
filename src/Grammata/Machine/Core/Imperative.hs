@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -51,6 +51,8 @@ where
 
     import Control.Applicative ((<|>), pure, (<*>), (<$>))
     import Control.Monad (forM)
+
+    import Data.List (intercalate)
 
 
     -- | A imperative method (function or procedure) represented by local variables, parameters and it's code.
@@ -88,6 +90,13 @@ where
         | IFunc Ident [CoreExpression m]
         -- | remind
         | IRemind
+
+    instance Show (CoreExpression m) where
+        show (IVar i) = "$" ++ show i 
+        show (IVal b) = show b 
+        show (IOp _ es) = "°(" ++ intercalate " ° " (map show es) ++ ")"
+        show (IFunc i es) = "call " ++ i ++ "(" ++ intercalate ", " (map show es) ++ ")"
+        show IRemind = "remind" 
 
     instance Show (CoreStatement m) where
         show (_ := _) = "assingment"
@@ -177,101 +186,3 @@ where
         IKeep expr -> 
             evalExpression [] (\bsc -> keep bsc >> runImperative stmts retPt) expr
 
-
-{-
-    -- | Evaluates an arithmetical expression.
-    evalExpression :: (CoreImperative m)
-        => [(Ident, CoreExpression m)]  -- ^ Temporary auxiliary symbol table.
-        -> CoreExpression m             -- ^ Expression to evaluate.
-        -> m ()                         -- ^ List of possible results.
-    evalExpression tmp (IVar id) = (readTemp tmp >>= evalExpression tmp) <|> (readSymbol id >>= setReturnValue)
-        where 
-            readTemp tmp = case id `lookup` tmp of
-                Nothing -> fail $ "Cannot find " ++ id ++ " in TMP."
-                Just e  -> return e
-    evalExpression _ (IVal bsc) = setReturnValue bsc
-    evalExpression tmp (IOp f args) = f <$> mapM (\arg -> evalExpression tmp arg >> getReturnValue) args >>= setReturnValue
-    evalExpression tmp (IFunc name args) = mapM (\arg -> evalExpression tmp arg >> getReturnValue) args >>= callFunction name 
-
-    -- | Evaluates a expression and extracts a boolean.
-    evalToBoolean :: CoreImperative m 
-        => CoreExpression m -- ^ Expression to evaluate.
-        -> m Bool           -- ^ Result.
-    evalToBoolean cond = do
-        evalExpression [] cond 
-        cond <- getReturnValue
-        case cond of
-            Boolean b -> return b
-            others    -> fail $ "ERROR CORE.IMPERATIVE " ++ show others ++ " is no boolean."
-
-    -- | Evaluates a expression and extracts an integer.
-    evalToInteger :: CoreImperative m 
-        => CoreExpression m -- ^ Expression to evaluate.
-        -> m Integer    -- ^ Result.
-    evalToInteger val = do
-        evalExpression [] val 
-        val <- getReturnValue
-        case val of
-            Natural b -> return b
-            others    -> fail $ "ERROR CORE.IMPERATIVE " ++ show others ++ " is no natural."
-
-    -- | Runs a method as a function taking its arguments and returing a result.
-    runFunction :: CoreImperative m 
-        => CoreMethod m     -- ^ Method to run.
-        -> [Basic]      -- ^ Arguments.
-        -> m Basic      -- ^ Result.
-    runFunction (Method locals params code) args = let pLocals = params `zip` args in do 
-        enter pLocals
-        locals' <- mapM (\(i,e) -> evalExpression locals e >>= mapM (return . (,) i)) locals >>= return . parallel -- >>= mapM (\es -> (fst . unzip $ locals) `zip` es)
-        leave 
-        choice . flip map locals' $ \loc -> do
-            enter $ pLocals ++ loc
-            toReturn <- run code
-            leave
-            return toReturn
-        where 
-            run [] = fail "ERROR CORE.IMPERATIVE no return"
-            run (stmt:stmts) = case stmt of
-                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeSymbol ident basic >> run stmts)
-                IIf cond b1 b2 -> do
-                    cond' <- evalToBoolean cond
-                    if cond' then run (b1 ++ stmts) else run (b2 ++ stmts)
-                IWhile cond block -> do 
-                    cond' <- evalToBoolean cond 
-                    if cond' then run $ block ++ stmt:stmts else run stmts
-                IReturn expr -> evalExpression [] expr >>= choice . map return
-                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> call ident args >> run stmts)
-                BackTrack -> trackBack 
-
-    -- | Runs a method as a procedure taking its arguments.
-    runProcedure :: CoreImperative m 
-        => CoreMethod m     -- ^ Method to run.
-        -> [Basic]      -- ^ Arguments.
-        -> m ()         -- ^ Void.
-    runProcedure (Method locals params code) args = let pLocals = params `zip` args in do 
-        enter pLocals 
-        locals' <- mapM (\(i,e) -> evalExpression locals e >>= mapM (return . (,) i)) locals >>= return . parallel
-        leave
-        choice . flip map locals' $ \loc -> do 
-            enter $ pLocals ++ loc 
-            run code 
-            leave 
-        where
-            run [] = return ()
-            run (stmt:stmts) = case stmt of
-                ident := expr  -> evalExpression [] expr >>= choice . map (\basic -> writeLocals ident basic >> run stmts)
-                IIf cond b1 b2 -> do
-                    cond' <- evalToBoolean cond
-                    if cond' then run (b1 ++ stmts) else run (b2 ++ stmts)
-                IWhile cond block -> do 
-                    cond' <- evalToBoolean cond 
-                    if cond' then run $ block ++ stmt:stmts else run stmts
-                IReturn e -> do
-                    n <- evalToInteger e 
-                    case n of 
-                        0 -> return ()
-                        _ -> fail $ "ERROR CORE.IMPERATIVE exit code " ++ show n ++ "."
-                ICall ident exprs -> mapM (evalExpression []) exprs >>= return . parallel >>= choice . map (\args -> call ident args >> run stmts)
-                BackTrack -> trackBack 
-
--}

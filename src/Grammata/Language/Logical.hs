@@ -21,12 +21,12 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 --
 -- [Logical subprogram grammar]
 -- 
--- > QUERY ::= query IDENT ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
+-- > QUERY ::= query IDENT ( { IDENT { , IDENT}*}? ) { asks IDENT* } for IDENT ?- CLAUSE end
 -- > 
 -- > IDENT ::= {a..z}{a..z|A..Z|0..9}*
 -- > 
@@ -34,8 +34,7 @@
 -- > 
 -- > DISJ   ::= CONJ { , CONJ}*
 -- > 
--- > CONJ   ::= - CLAUSE 
--- >          | ( CLAUSE )
+-- > CONJ   ::= ( CLAUSE )
 -- >          | GOAL 
 -- > 
 -- > GOAL   ::= TERM :=: TERM 
@@ -84,7 +83,6 @@ where
     -- | AST @CLAUSE@
     data Clause  
         = Pos Goal
-        | Neg Clause
         | Clause :&& Clause
         | Clause :|| Clause
         deriving (Show, Eq)
@@ -111,7 +109,7 @@ where
         others  -> Expr others
 
     goal :: Parser Goal 
-    goal = ((:=:) <$> try (term <* token ":=:") <*> term) 
+    goal = ((:=:) <$> try (term <* token "~") <*> term) 
         <|> (Predicate <$> ident <*> ((token "(" *> sepBy1 term (token ",") <* token ")") 
             <|> ((lookAhead . choice . map token) [",", ";", ")", ".", "end"] *> pure [])))
 
@@ -122,8 +120,7 @@ where
             disj = chainl1 conj (token "," >> pure (:&&))
 
             conj :: Parser Clause 
-            conj = lookAhead (token "-" <|> token "(" <|> (spaces >> pure "_")) >>= \la -> case la of
-                "-" -> token "-" >> Neg <$> clause
+            conj = lookAhead (token "(" <|> (spaces >> pure "_")) >>= \la -> case la of
                 "(" -> token "(" *> clause <* token ")"
                 "_" -> spaces >> Pos <$> goal 
 
@@ -133,18 +130,16 @@ where
     ident :: Parser String 
     ident = (:) <$> lower <*> many alphaNum
 
-    -- | Parses @BASE@
     parseBase :: Parser (String, Base) 
     parseBase = (,) <$> (token "base" *> ident) <*> (token "says" *> manyTill rule (token "end"))
 
-    -- | Parses @QUERY@
-    parseQuery :: Parser (String, [String], [String], Maybe String, Clause)
+    parseQuery :: Parser (String, [String], [String], String, Clause)
     parseQuery = (,,,,)
         <$> between (token "query") (lookAhead (token "(")) ident
         <*> between (token "(") (token ")") (sepBy ident (token ","))
-        <*> ((token "asks" *> (manyTill (spaces *> ident) . lookAhead . choice . map token) ["for", "?-"]) 
-            <|> ((lookAhead . choice . map token) ["for", "?-"] >> pure []))
-        <*> ((token "for" >> Just <$> ((:) <$> upper <*> many alphaNum)) <|> ((lookAhead . token) "?-" *> pure Nothing))
+        <*> ((token "asks" *> (manyTill (spaces *> ident) . lookAhead . choice . map token) ["for"]) 
+            <|> ((lookAhead . choice . map token) ["for"] >> pure []))
+        <*> (token "for" *> ((:) <$> upper <*> many alphaNum) <* lookAhead (token "?-"))
         <*> (token "?-" *> clause)
         <*  token "end"
 

@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 -- 
 -- [Functional subprogram grammar]
@@ -47,6 +47,9 @@
 -- >              | LOG
 -- >              | VALUE
 -- >              | IDENT[( LAMBDA [, LAMBDA]* )]
+-- >              | keep LAMBDA
+-- >              | backtrack
+-- >              | remind
 -- >
 -- > DEF        ::= LOG := LAMBDA ;
 -- >
@@ -72,7 +75,7 @@ where
 
     import Control.Applicative (Applicative (pure, (<*>)), (*>), (<*), (<|>), (<$>))
 
-    import Text.Parsec (chainl1, many1, try, lower, sepBy, between, lookAhead, spaces, space, string, char, letter, alphaNum, many, parse, eof, choice, manyTill, (<?>), anyChar)
+    import Text.Parsec (chainl1, chainr1, many1, try, lower, sepBy, between, lookAhead, spaces, space, string, char, letter, alphaNum, many, parse, eof, choice, manyTill, (<?>), anyChar)
     import Text.Parsec.String (Parser)
 
     import Debug.Trace
@@ -143,7 +146,6 @@ where
         show (Fun_Keep e) = "(keep " ++ show e ++ ")"
 
 
-    -- | Parses @FUNCTIONAL@.
     parseFunctional :: Parser (String, [String], Lambda) 
     parseFunctional = (,,) <$> (token "lambda" *> ident) <*> between (token "(") (token ")") (sepBy ident (token ",")) <*> (token "is" *> lambda <* token "end")
         where
@@ -162,7 +164,7 @@ where
             lambda :: Parser Lambda 
             lambda = do 
                 e  <- extract <$> arith 
-                es <- map extract <$> manyTill arith (follow [",", "end", ")", ";", "then", "else"] <|> (eof >> pure "#"))
+                es <- map extract <$> manyTill arith (follow [",", "end", ")", ";", "then", "else", "]"] <|> (eof >> pure "#"))
                 pure $ case es of 
                     [] -> e 
                     es -> Fun_Appl e es
@@ -180,11 +182,14 @@ where
             comp = chainl1 summ (try (token "+") <|> try (token "-") >>= pure . (\op e1 e2 -> BinOp e1 op e2))
 
             summ :: Parser (Expression Lambda)
-            summ = chainl1 unary (try (token "*") <|> try (token "/") >>= pure . (\op e1 e2 -> BinOp e1 op e2))
+            summ = chainl1 list (try (token "*") <|> try (token "/") >>= pure . (\op e1 e2 -> BinOp e1 op e2))
+
+            list :: Parser (Expression Lambda)
+            list = chainr1 unary (try (token ":") >>= pure . (\op e1 e2 -> BinOp e1 op e2))
 
             unary :: Parser (Expression Lambda)
             unary = do 
-                unop <- (UnOp <$> (token "-" <|> token "!")) <|> pure id  
+                unop <- (UnOp <$> (token "-" <|> token "!" <|> token "." <|> token "%")) <|> pure id  
                 e <- simple 
                 pure . unop $ case e of
                     Fun_Arith e -> e 
@@ -207,7 +212,13 @@ where
                 "remind" -> token "remind" >> pure (Fun_Arith Remind)
                 [c] | isDigit c -> Fun_Value <$> value 
                     | isLower c -> Fun_Arith <$> func
+                    | c == '['  -> Fun_Arith <$> listfunc
                     | otherwise -> fail $ "Unexpected " ++ show c ++ "." 
+
+            listfunc :: Parser (Expression Lambda)
+            listfunc = do 
+                elems <- between (token "[") (token "]") (lambda `sepBy` token ",")
+                return $ foldr (\x xs -> Func "cons" [Const x,xs]) (Func "nil" []) elems
 
             func :: Parser (Expression Lambda)
         --    func = Func <$> ident <*> ((token "(" *> sepBy (Const <$> lambda) (token ",") <* token ")" ) <|> pure [])

@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -31,13 +31,13 @@ module Grammata.Interpreter.Compilation
 )
 where
 
-    import Debug.Trace
+--    import Debug.Trace
 
     import Grammata.Machine (
         imperative, functional, query, base, Subprogram,
         iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVal, iVar, iOp, iFunc, iKeep, iRemind, CoreStatement, CoreExpression,
         fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, fKeep, fBackTrack, fRemind, CoreLambda,
-        lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
+        lOr, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
         bBool, bNat, bReal, bStruct, bNull, Basic, (=:=), (=/=),
         Machine, Ident
         )
@@ -152,7 +152,6 @@ where
         => Clause 
         -> COMPILER [CoreClause]
     compileClause (Pos goal) = (:[]) . lGoal <$> compileGoal goal 
-    compileClause (Neg clause) = (:[]) . lNot <$> compileClause clause 
     compileClause (c1 :&& c2) = (++) <$> compileClause c1 <*> compileClause c2
     compileClause (c1 :|| c2) = (:[]) . lOr <$> mapM compileClause [c1, c2]
 

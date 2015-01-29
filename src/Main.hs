@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -32,17 +32,21 @@ module Main
 where
 
     import System.IO
-
     import System.Environment (getArgs)
+
+    import Data.List (isSuffixOf)
+
     import Grammata (executeScript)
 
     -- | Entry point.
     main :: IO ()
     main = do 
         args <- getArgs 
-        file <- case args of 
-        	[] -> getLine
-        	a:_ -> return a
-        script <- readFile file
-        hSetBuffering stdin NoBuffering
-        executeScript script 
+        case args of 
+    	   [] -> putStrLn "no file to execute..."
+    	   file:_  
+                | ".gr" `isSuffixOf` file -> do
+                    hSetBuffering stdin NoBuffering
+                    script <- readFile file
+                    executeScript script 
+                | otherwise -> putStrLn $ file ++ " is no *.gr file..."

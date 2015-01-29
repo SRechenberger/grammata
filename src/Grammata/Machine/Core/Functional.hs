@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -78,17 +78,17 @@ where
 
 
     instance Show (CoreLambda m) where
-        show (FVar ident) = "1var(" ++ ident ++ ")"
-        show (FConst bsc) = "2basic(" ++ show bsc ++ ")" 
-        show (FIf ec et ee) = "3(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
-        show (FOp _ args) = "4(" ++ intercalate " `op` " (map show args) ++ ")"
-        show (FCall i args) = "5(call " ++ i ++ " " ++ unwords (map show args) ++ ")"
-        show (FLet defs e) = "6(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
-        show (FApp e args) = "8(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
-        show (FAbs ids e) = "9(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
-        show (FKeep e) = "A(keep " ++ show e ++ ")"
-        show (FRemind) = "Bremind"
-        show (FBackTrack) = "Cbacktrack"
+        show (FVar ident) = "var(" ++ ident ++ ")"
+        show (FConst bsc) = "basic(" ++ show bsc ++ ")" 
+        show (FIf ec et ee) = "(if " ++ show ec ++ " then " ++ show et ++ " else " ++ show ee ++ ")" 
+        show (FOp _ args) = "(" ++ intercalate " `op` " (map show args) ++ ")"
+        show (FCall i args) = "(call " ++ i ++ " " ++ unwords (map show args) ++ ")"
+        show (FLet defs e) = "(letrec " ++ intercalate "; " (map (\(i,e) -> i ++ " := " ++ show e) defs) ++ " in " ++ show e ++ ")"
+        show (FApp e args) = "(" ++ show e ++ " " ++ unwords (map show args) ++ ")"
+        show (FAbs ids e) = "(Λ" ++ unwords ids ++ "." ++ show e ++ ")" 
+        show (FKeep e) = "(keep " ++ show e ++ ")"
+        show (FRemind) = "remind"
+        show (FBackTrack) = "backtrack"
 
     -- | Functional core language evaluation monad class.
     class CoreGeneral m => CoreFunctional m where
@@ -100,11 +100,6 @@ where
         rewrite  :: Pointer -> CoreLambda m -> m ()
         -- | Loads an expression from the heap and evaluates it, if this was not done already.
         fromHeap :: Pointer -> (CoreLambda m -> m ()) -> m ()
-        -- Gets the value of an identifier from the global scope.
-        -- loadFree :: m [(Ident, Basic)] 
-        -- Checks, whether an identifier references a value on the stack or not.
-        -- exists   :: Ident -> m Bool
-
 
     -- | Checks whether a lambda expression is reducable.
     isRedex :: (CoreFunctional m)
@@ -114,9 +109,9 @@ where
     isRedex (FConst c)          = case c of 
         HeapObj _ -> return True
         _         -> return False
-    isRedex (FIf c _ _)         = return True 
-    isRedex (FOp _ as)          = return True -- mapM isRedex as >>= return . and
-    isRedex (FCall _ as)        = return True
+    isRedex (FIf _ _ _)         = return True 
+    isRedex (FOp _ _)           = return True -- mapM isRedex as >>= return . and
+    isRedex (FCall _ _)         = return True
     isRedex (FLet _ _)          = return True 
     isRedex (FAbs _ _)          = return False
     isRedex (FApp (FAbs _ _) _) = return True
@@ -133,11 +128,6 @@ where
         -> m ()                   -- ^ Binding action.
     bind f args retPt = case f of
         FConst (HeapObj ptr) -> fromHeap ptr $ \expr -> bind expr args retPt
---        FVar ident -> do 
---            f' <- loadFree ident
---            case f' of 
---                HeapObj ptr -> fromHeap ptr $ \f'' -> bind f'' args retPt
---                other       -> retPt (FApp (FConst other) args)
         FAbs ids e -> mapM new args >>= (if length args == length ids 
             then return . foldr subst e . zip ids 
             else if length ids > length args 

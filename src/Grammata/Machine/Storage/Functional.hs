@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -41,9 +41,9 @@ where
     import Prelude hiding (lookup)
     import Data.Map (Map, insert, adjust, lookup, empty, member, toList)
 
-    data Object value = 
+    data Object value  = 
           Empty
-        | Closure value
+        | Closure value 
         | Basic value
         deriving(Show)
     
@@ -55,12 +55,12 @@ where
             heap :: Map Pointer (Object value)  -- ^ Heap holding deposed heap objects.
         } deriving ()
 
-    instance Show value => Show (FStorage value) where
+    instance (Show value) => Show (FStorage value) where
         show (FStorage next heap) = "## EMPTY HEAP\n" ++ concat (map (\x -> "# " ++ show x ++ "\n") $ toList heap) ++ "# NEXT CELL " ++ show next ++ "\n"
 
     -- | An empty storage.
     newFStorage :: () 
-        => FStorage value   -- ^ New empty storage.
+        => FStorage value-- ^ New empty storage.
     newFStorage = FStorage 0 empty
 
     alloc :: (Monad m) 
@@ -85,18 +85,21 @@ where
     update :: (Monad m)
         => Pointer              -- ^ A pointer to the cell to be updated.
         -> value                -- ^ The value to update to.
+        -> Bool                 -- ^ True, if the value is to be stored as Basic; False otherwise.
         -> FStorage value       -- ^ The heap to be updated.
         -> m (FStorage value)   -- ^ The updated heap.
-    update ptr val storage = let 
+    update ptr val evaluated storage = let 
         h = heap storage 
         in if ptr `member` h 
-            then return storage {heap = adjust (const . Basic $ val) ptr h}
+            then if evaluated
+                then return storage {heap = adjust (const . Basic $ val) ptr h}
+                else return storage {heap = adjust (const . Closure $ val) ptr h}
             else fail $ "ERROR STORAGE.FUNCTIONAL null pointer " ++ show ptr 
 
     -- | Loads a value from the heap, and evaluates it with a given function, if it is a closure.
     load :: (Monad m)
         => Pointer 
-        -> FStorage value
+        -> FStorage value 
         -> m (value, Bool)
     load ptr storage = let h = heap storage in case ptr `lookup` h of
         Nothing -> fail $ "ERROR STORAGE.FUNCTIONAL " ++ show ptr ++ " does not point on a heap cell."

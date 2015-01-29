@@ -1,0 +1,42 @@
+program Stammbaum
+begin
+    
+    base stammbaum says
+
+        eltern(marta, hans, fritz).
+        eltern(marta, hans, felix).
+        eltern(marta, hans, anna).
+
+        eltern(julia, peter, siglinde).
+        eltern(julia, peter, helga).
+
+        eltern(siglinde, fritz, max).
+        eltern(siglinde, felix, petra).
+        eltern(helga, felix, david).
+
+        enkel(Gross,Enkel) :- 
+            (Gross ~ Oma ; Gross ~ Opa), 
+            eltern(Oma,Opa,Elter), 
+            (Elter ~ Mutter ; Elter ~ Vater),
+            eltern(Mutter,Vater,Enkel).
+
+    end
+
+    query enkel() asks stammbaum for X ?-
+        enkel(peter,X) ; X ~ false
+    end
+
+    proc main() 
+    with
+        var tmp;
+    does
+        keep [];
+        tmp := enkel();
+        if $tmp != false then
+            keep $tmp:remind;
+            backtrack;
+        else 
+            return remind;
+        end
+    end
+end

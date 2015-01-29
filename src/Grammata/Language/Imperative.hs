@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 -- 
 -- [Imperative subprogram grammar]
@@ -41,7 +41,6 @@
 -- >              | return EXPRESSION ; 
 -- >              | backtrack ;
 -- >              | keep EXPRESSION ;
--- >              | remind ;
 ---------------------------------------------------------------------------
 
 
@@ -65,7 +64,6 @@ where
 
     import Control.Applicative (pure, (<*>), (<$>), (<*), (*>))
 
-    -- | AST @STMT@.
     data Statement  
         = Imp_Assign String (Expression Value)
         | Imp_For String (Maybe (Expression Value)) (Expression Value) (Maybe (Expression Value)) [Statement]
@@ -82,7 +80,6 @@ where
     instance ParseExprVal Value where
         parseExprVal = value
 
-    -- | Parses @IMPERATIVE@.
     parseImperative :: Parser (String, [String], [(String, Maybe (Expression Value))], [Statement])
     parseImperative = (,,,) 
         <$> (token "proc" *> ident) 

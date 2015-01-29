@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ where
         import Grammata.Machine 
 
         compileGrammata :: ()
-            => Program 
-            -> Either String ([(Ident, Subprogram Machine)], [(Ident, CoreExpression Machine)])
+            => Program                                                                          -- Program to compile
+            -> Either String ([(Ident, Subprogram Machine)], [(Ident, CoreExpression Machine)]) -- Compiled program.
         compileGrammata prg = runCompiler (compileProgram prg) (fst . unzip . globals $ prg) (fst . unzip . subs $ prg)
 

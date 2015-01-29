@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 --
 -- [Arithmetical expression grammar, parametrized over @VALUE@]
@@ -40,6 +40,7 @@
 -- >       | { - | ! } EXPRESSION
 -- >       | IDENT{(EXPRESSION { , EXPRESSION}*)}?
 -- >       | VALUE
+-- >       | remind
 ---------------------------------------------------------------------------
 
 module Grammata.Language.Expression
@@ -132,9 +133,23 @@ where
             [] -> e1
             es -> foldl (\e1 (op, e2) -> BinOp e1 op e2) e1 es
 
+
+    infixr 5 >>>
+
+    (>>>) :: [String] -> Parser (Expression value) -> Parser (Expression value)
+    ops >>> parser = do 
+        others <- many . try $ do 
+            e <- parser 
+            op <- choice . map (try . token) $ ops 
+            return (e, op)
+        e1 <- parser 
+        return $ case others of 
+            [] -> e1
+            es -> foldr (\(e2,op) e1 -> BinOp e2 op e1) e1 es
+
     -- | Parses @EXPRESSION@.
     parseExpression :: ParseExprVal value => Parser (Expression value)
-    parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< [":"] <<< expr 
+    parseExpression = ["||"] <<< ["&&"] <<< ["==", "!=", "<=", ">=", "<", ">"] <<< ["+", "-"] <<< ["*", "/"] <<< [":"] >>> expr 
         where 
             expr = UnOp <$> ((:[]) <$> between spaces spaces (oneOf "-!.%"))  <*> expr 
                 <|> try (token "remind") *> pure Remind

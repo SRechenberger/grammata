@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ module Grammata.Machine
     -- ** Functional core generation.
     fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, fKeep, fBackTrack, fRemind, CoreLambda,
     -- ** Logical core generation.
-    lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
+    lOr, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
     -- ** Basic value core generation.
     bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural, Struct), (=:=), (=/=)
 )
@@ -211,7 +211,7 @@ where
     -- | New logical query.
     query :: ()
         => [Ident]      -- ^ Parameters.
-        -> Maybe Ident  -- ^ Maybe the variable, for which a value is sought; if Nothing: boolean is returned.
+        -> Ident        -- ^ the variable, for which a value is sought.
         -> [Ident]      -- ^ Knowledge bases to be asked.
         -> [CoreClause] -- ^ Goals of the query.
         -> Subprogram m -- ^ Logical query.
@@ -222,12 +222,6 @@ where
         => [[CoreClause]]   -- ^ List of konjoined goals g1,g2,..,gn.
         -> CoreClause       -- ^ Logical disjunction of goals.
     lOr = LOr  
-
-    -- | Negation of goals: ¬g.
-    lNot :: ()
-        => [CoreClause] -- ^ list of goals g.
-        -> CoreClause   -- ^ Negation of goals.
-    lNot = LNot 
 
     -- | A logical goal: g.
     lGoal :: ()

@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 --
 -- [Grammata program grammar]
@@ -71,7 +71,7 @@ where
     data Subprg  
         = Procedure [String] [(String, Maybe (Expression Value))] [Statement]
         | Lambda [String] Lambda
-        | Query [String] [String] (Maybe String) Clause
+        | Query [String] [String] String Clause
         | Base [Rule]
         deriving(Show, Eq)
 
