@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ module Grammata.Machine.Grammateion
 )
 where   
 
-    import Debug.Trace
+--    import Debug.Trace
     import Data.Map (Map)
 
     import Control.Applicative (Applicative (..), Alternative (..))
@@ -54,7 +54,7 @@ where
 
     -- | Combination monad of Reader, State and Either; able to hold some constant environment and a mutable state and to terminate.
     newtype Grammateion dict state a = Grammateion {
-        runGrammateion :: (dict -> state -> IO (Either String (a, state))) -- ^ Runs a grammateion monad.
+        runGrammateion :: dict -> state -> IO (Either String (a, state)) -- ^ Runs a grammateion monad.
         }
 
     instance Functor (Grammateion d s) where
@@ -94,7 +94,6 @@ where
         local f gr = Grammateion $ \d s -> runGrammateion gr (f d) s 
 
     instance MonadIO (Grammateion d s) where
-        -- liftIO :: IO a -> Grammateion d s a
         liftIO ioAction = Grammateion $ \d s -> do 
             a <- ioAction 
             return $ Right (a, s)

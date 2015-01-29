@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 --
 -- [Basic value grammar]
@@ -53,7 +53,7 @@ module Grammata.Language.Value
 )
 where
     
-    import Text.Parsec (many1, try, char, digit, string, parse, lookAhead, anyChar, spaces, letter)
+    import Text.Parsec (many1, try, char, digit, string, parse, lookAhead, anyChar, spaces, letter, sepBy)
     import Text.Parsec.String (Parser)
 
     import Control.Applicative ((<|>), (<*), (*>), pure, (<$>))
@@ -66,6 +66,7 @@ where
         | Real Double
         | Boolean Bool 
         | Variable String
+        | List [Value]
         deriving (Eq)
 
 
@@ -74,6 +75,7 @@ where
         show (Real d)     = show d 
         show (Boolean b)  = if b then "true" else "false" 
         show (Variable s) = '$':s
+        show (List vs)    = show vs
 
     -- | Parses @VALUE@.
     value :: Parser Value
@@ -84,6 +86,7 @@ where
             't' -> string "true" >> return (Boolean True)
             'f' -> string "false" >> return (Boolean False)
             '$' -> char '$' >> Variable <$> many1 (letter <|> digit)
+            '[' -> char '[' >> List <$> sepBy value (spaces *> string "," <* spaces) <* spaces <* char ']'
             c   -> do 
                 pre <- many1 digit
                 la <- lookAhead (anyChar <|> pure '#') 

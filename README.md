@@ -1,87 +1,49 @@
 grammata 
 ========
 
-**grammata** is a simple script language interpreted and run on a monadic virtual machine.
+**grammata** is a script language interpreted and run on a monadic virtual machine.
 It supports polyparadigmatic features such as 
   * imperative procedures and functions 
   * functional expressions 
   * logical knowledge bases and queries to use them
 
-Syntax
-------
+This project, in particular, the virtual Machine, was part of the Bachelor Thesis
+"Das Grammateion - Monadische Implementierung einer virtuellen Maschine zur Ausführung einer polyparadigmatischen Programmiersprache"
+("The Grammateion - Monadic Implementation of a virtual machine for the execution of a polyparadigmatic programming language")
+by Sascha Rechenberger.
 
-### Grammata Programs
+
+Installation
+------------
+
+First, clone from GitHub 
 ```
-PROGRAM ::= program {A..Z}{a..z|A..Z|0..9} { with DECL* }? begin SUBPRG+ end
-DECL    ::= var IDENT { := EXPRESSION }? ;
-IDENT   ::= {a..z}{ 0..9 | A..Z | a..z }*
-SUBPRG  ::= FUNCTIONAL 
-          | IMPERATIVE 
-          | QUERY 
-          | BASE
+git clone git@github.com:SRechenberger/grammata.git
+cd grammata
 ```
-### General arithmetical expressions
+then initiate a cabal sandbox and build with cabal
 ```
-EXPRESSION ::= DISJ { || DISJ}*
-DISJ       ::= CONJ { && CONJ}*
-CONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
-COMP       ::= SUM {{ + | - } SUM}*
-SUM        ::= FAC {{ * | / } FAC}*
-FAC        ::= ( EXPRESSION )
-             | { - | ! } EXPRESSION
-             | IDENT{(EXPRESSION { , EXPRESSION}*)}?
-             | PARAM_VALUE
+cabal install
 ```
-### Functional
+then, if not already done, add `~/.cabal/bin` to your `$PATH` variable.
+
+Usage
+-----
+
+to run a script, simply call, for example
 ```
-FUNCTIONAL ::= lambda IDENT ( IDENT* ) is LAMBDA end
-LAMBDA     ::= ARITH ARITH*
-ARITH      ::= DISJ {|| DISJ}*
-DISJ       ::= KONJ {&& KONJ}*
-KONJ       ::= COMP {{ == | != | <= | >= | < | > } COMP}*
-COMP       ::= SUM {{+ | -} SUM}*
-SUM        ::= SIMPLE {{ * | / } SIMPLE}*
-SIMPLE     ::= \ LOG+ . LAMBDA
-             | if LAMBDA then LAMBDA else LAMBDA end
-             | let DEF* in LAMBDA end
-             | ( LAMBDA )
-             | LOG
-             | VALUE
-             | IDENT[( LAMBDA [, LAMBDA]* )]
-DEF        ::= LOG := LAMBDA ;
-LOG        ::= $IDENT 
+grammata examples/quicksort.gr
 ```
-### Imperative
-```
-IMPERATIVE ::= { func | proc } IDENT ( {IDENT { , IDENT }*}? ) { with DECL+ }? does STMT* end
-STMT       ::= for IDENT { from EXPRESSION }? to EXPRESSION { in EXPRESSION }? do STMT* end
-             | while EXPRESSION to STMT* end
-             | do STMT* while EXPRESSION end
-             | if EXPRESSION then STMT* else STMT* end
-             | call IDENT({ EXPRESSION { , EXPRESSION }*}?) ;
-             | IDENT := EXPRESSION ;
-             | return EXPRESSION ; 
-             | exit ; 
-             | backtrack ;
-```
-### Logical
-```
-QUERY  ::= query ( { IDENT { , IDENT}*}? ) { asks IDENT* } { for IDENT } ?- CLAUSE end
-CLAUSE ::= DISJ { ; DISJ}*
-DISJ   ::= CONJ { , CONJ}*
-CONJ   ::= - CLAUSE 
-         | ( CLAUSE )
-         | GOAL 
-GOAL   ::= TERM :=: TERM 
-         | IDENT{( TERM { , TERM }*)}?
-TERM   ::= VALUE 
-         | {A..Z}{a..z|A..Z|0..9}*
-         | EXPRESSION 
-BASE   ::= base IDENT says RULE+ end
-RULE   ::= GOAL { :- CLAUSE}? .
-```
+it will then be compiled and executed.
+you can either accept the printed solution by pressing the 'y' button, 
+or demand a new one, by pressing an other one.
 
 Examples
 --------
 
 Example programs are included in the `examples` folder.
+
+Copyright
+---------
+(c) 2014, 2015, Sascha Rechenberger
+licensed under GNU Public License Version 3

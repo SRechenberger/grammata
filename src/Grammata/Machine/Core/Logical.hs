@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -36,13 +36,13 @@ module Grammata.Machine.Core.Logical
     CoreGoal (..), 
     CoreClause (..),
     CoreRule (..),
-    CoreQuery (..),
+    -- CoreQuery (..),
 
     -- ** Auxiliary functions
     lVar,
 
     -- * Calling
-    askQuery
+    runLogicalSubprogram
 
 )
 where 
@@ -56,12 +56,12 @@ where
     import Control.Applicative ((<$>), (<*>), (<|>), pure)
     import Control.Monad (forM)
 
-    import Grammata.Machine.Core.Class (Ident, GrammataCore (..))
+    import Grammata.Machine.Core.Class (Ident, CoreGeneral (..))
     import Grammata.Machine.Core.Types (Basic (..))
 
 
     -- | Necessary functions, which must be provided by the monad @m@ to evaluate logical subprograms.
-    class GrammataCore m => CoreLogical m where
+    class CoreGeneral m => CoreLogical m where
         -- | Loads a base by its name.
         getBase :: Ident -> m [CoreRule]
 
@@ -88,10 +88,9 @@ where
 
     -- | Terms of predicate logic.
     data CoreTerm = 
-          Atom Basic             -- ^ An 'atom'. 
-        | Var LVar               -- ^ A logical variable.
+          Atom Basic                -- ^ An 'atom'. 
+        | Var LVar                  -- ^ A logical variable.
         | LFun Ident Int [CoreTerm] -- ^ A function.
---        deriving (Show)
 
     instance NextNames CoreTerm where
         nextNames (Var var) = Var $ nextNames var 
@@ -109,10 +108,7 @@ where
 
     instance Monoid Subst where
         mempty = Subst id
-        s1 `mappend` s2 = Subst $ \x -> let 
-            x' = s1 `apply` x
-            x'' = s2 `apply` x'
-            in x''
+        s1 `mappend` s2 = Subst $ apply s1 . apply s2 . apply s1 
 
 
     -- | A logical goal.
@@ -136,22 +132,18 @@ where
     -- ^ A clause list.    
     data CoreClause =
           LOr [[CoreClause]] -- ^ Disjunction of clause lists.
-        | LNot [CoreClause]  -- ^ Negation of a clause list.
         | LGoal CoreGoal     -- ^ A single goal.
 
     instance Show CoreClause where
         show (LOr css) = "(" ++ (intercalate "; " . map (intercalate ", " . map show) $ css) ++ ")"
-        show (LNot cs)   = "¬(" ++ intercalate ", " (map show cs) ++ ")"
         show (LGoal g)   = show g
 
     instance ApplySubst CoreClause where
         s ~~> LOr css = LOr (map (map (s ~~>)) css)
-        s ~~> LNot cs = LNot $ map (s ~~>) cs 
         s ~~> LGoal g = LGoal $ s ~~> g
 
     instance NextNames CoreClause where
         nextNames (LOr css) = LOr (map (map nextNames) css)
-        nextNames (LNot cs) = LNot . map nextNames $ cs 
         nextNames (LGoal g) = LGoal . nextNames $ g 
 
 
@@ -164,16 +156,6 @@ where
 
     instance NextNames CoreRule where
         nextNames (head :- cs) = nextNames head :- map nextNames cs
-
-
-    {- | A parameterized rule, asking a list of bases for a given clause list, 
-         and returning either just a boolean or, if a binding for a certain variable was sought, its binding. -}
-    data CoreQuery = Query [Ident] (Maybe Ident) [Ident] [CoreClause] 
-
-    instance Show CoreQuery where
-        show (Query ps mI bs cs) = case mI of 
-            Nothing -> show bs ++ " ?- " ++ show cs ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
-            Just s  -> show bs ++ " ?- " ++ show cs ++ " for " ++ show s ++ " with " ++ "(" ++ intercalate "," (map show ps) ++ ")"
 
 
     -- | Generates a new logical variable packed in a term.
@@ -201,8 +183,8 @@ where
         Atom b -> retPt b 
         Var (v :$ _)  -> retPt $ Struct ('#':v) 0 []
         LFun n i as 
-            | i == 0    -> (getSymbol n <|> pure (Struct n 0 [])) >>= retPt
-            | otherwise -> termToBasicList as [] $ \bscs -> (callProcedure n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
+            | i == 0    -> (readSymbol n <|> pure (Struct n 0 [])) >>= retPt
+            | otherwise -> termToBasicList as [] $ \bscs -> (call n retPt bscs) {- <|> (retPt (Struct n i bscs))-}
 
 
     -- | Converts a list of terms to basic values.
@@ -287,18 +269,14 @@ where
 
     -- | Searches for substitutions via SLD resolution given a list of clauses, a list of rules and an initial substitution.
     search :: (CoreLogical m) 
-        => [CoreClause]             -- ^ List of clauses.
-        -> [CoreRule]               -- ^ List of rules.
-        -> Subst                    -- ^ Initial substitution.
-        -> ((Bool, Subst) -> m ())  -- ^ Returning point.
-        -> m ()                     -- ^ Remaining program action.
-    search []     _    s retPt = retPt (True, s)
+        => [CoreClause]     -- ^ List of clauses.
+        -> [CoreRule]       -- ^ List of rules.
+        -> Subst            -- ^ Initial substitution.
+        -> (Subst -> m ())  -- ^ Returning point.
+        -> m ()             -- ^ Remaining program action.
+    search []     _    s retPt = retPt s
     search (g:gs) base s retPt = let base' = map nextNames base in case g of
         LOr css -> searchList (map (\cs -> (s, cs ++ gs)) css) base' retPt
-        LNot cs -> do
-            search cs base' s $ \(success, _) -> if success 
-                then trackback
-                else search gs base s retPt
         LGoal g -> case g of
             t1 :=: t2 -> do
                 case t1 `unify` t2 of
@@ -315,31 +293,30 @@ where
     searchList :: (CoreLogical m)
         => [(Subst, [CoreClause])]  -- ^ Pairs of substitutions and clauses; the substitution is applied to the clauses and then a given to @search@. 
         -> [CoreRule]               -- ^ List of rules.
-        -> ((Bool, Subst) -> m ())  -- ^ Returning point.
+        -> (Subst -> m ())          -- ^ Returning point.
         -> m ()                     -- ^ Remaining program action.
-    searchList [] _ retPt = trackback
+    searchList [] _ _ = trackback
     searchList ((s, gs):cs) base retPt = do 
         setBacktrackPoint (searchList cs base retPt)
         search gs base s retPt
 
     -- | Asks a query under given arguments.
-    askQuery :: (CoreLogical m)
-        => CoreQuery        -- ^ Query to ask.
+    runLogicalSubprogram :: (CoreLogical m)
+        => [Ident]
+        -> Ident 
+        -> [Ident]
+        -> [CoreClause]     -- ^ Query to ask.
         -> [Basic]          -- ^ Arguments.
         -> (Basic -> m ())  -- ^ Returning point.
         -> m ()             -- ^ Remaining program action.
-    askQuery (Query params sought bases clauses) args retPt = let p_as = params `zip` args in do 
+    runLogicalSubprogram params sought bases clauses args retPt = let p_as = params `zip` args in do 
         enter p_as
         allBases <- prepareBase . concat <$> mapM getBase bases 
         clauses' <- prepareClauses clauses
-        case sought of 
-            Nothing -> search clauses' allBases mempty $ \(success, _) -> retPt (Boolean success)
-            Just x  -> search clauses' allBases mempty $ \(success, subst) -> if success
-                then do 
-                    termToBasic (subst `apply` (lVar x)) $ \basic -> do 
-                        leave 
-                        retPt basic
-                else trackback
+        search clauses' allBases mempty $ \subst -> do
+            termToBasic (subst `apply` (lVar sought)) $ \basic -> do 
+                leave 
+                retPt basic
 
 
     prepareClauses :: (CoreLogical m)
@@ -350,7 +327,6 @@ where
     prepareClause :: (CoreLogical m)
         => CoreClause
         -> m CoreClause
-    prepareClause (LNot cs) = LNot <$> mapM prepareClause cs 
     prepareClause (LOr css) = LOr <$> mapM prepareClauses css 
     prepareClause (LGoal g) = LGoal <$> prepareGoal g 
 
@@ -363,7 +339,7 @@ where
     prepareTerm :: (CoreLogical m)
         => CoreTerm 
         -> m CoreTerm
-    prepareTerm c@(LFun name 0 []) = ((basicToTerm <$> getSymbol name)) <|> (pure c)
+    prepareTerm c@(LFun name 0 []) = ((basicToTerm <$> readSymbol name)) <|> (pure c)
     prepareTerm (Atom b) = pure $ basicToTerm b 
     prepareTerm others = pure others
 
@@ -388,5 +364,4 @@ where
             newNameTerm atom = return atom 
 
             newNameClause (LOr css) = LOr <$> mapM (mapM newNameClause) css
-            newNameClause (LNot cs) = LNot <$> mapM newNameClause cs
             newNameClause (LGoal g) = LGoal <$> newNamePred g

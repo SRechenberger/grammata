@@ -1,14 +1,21 @@
-program ParserExample 
+program Zugriffsfunktionen 
 with
     var s := pair(a,b);
 begin
-    query nums(x) for X ?- 
-        pair(X,Y) :=: x;
-        pair(Y,X) :=: x
+    query fst(pair) for X ?- pair ~ pair(X,Y) end
+    query setFst(pair,val) for X ?- 
+        pair ~ pair(Fst,Snd), X ~ pair(val,Snd) 
     end
 
-    func main() 
+    query tf() for X ?- X ~ true ; X ~ false end
+
+    proc main() 
     does
-        return oneOf($s,nums($s)); 
+        if tf() then
+            return firstOf(fst($s),$s); 
+        else 
+            s := setFst($s, 1);
+            return modified(fst($s),$s);
+        end
     end
 end

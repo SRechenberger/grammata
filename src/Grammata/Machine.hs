@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
@@ -33,13 +33,13 @@ module Grammata.Machine
     -- * Core subprogram generation.
     imperative, functional, query, base, Subprogram,
     -- ** Imperative core generation.
-    iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVar, iVal, iOp, iFunc, CoreStatement, CoreExpression,
+    iAssignment, iIf, iWhile, iReturn, iCall, iTrackBack, iVar, iVal, iOp, iFunc, iKeep, iRemind, CoreStatement, CoreExpression,
     -- ** Functional core generation.
-    fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, CoreLambda,
+    fVar, fConst, fIf, fOp, fCall, fLet, fApp, fAbs, fKeep, fBackTrack, fRemind, CoreLambda,
     -- ** Logical core generation.
-    lOr, lNot, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
+    lOr, lGoal, lUnify, lFun, lAtom, lRule, lPred, lVar, CoreClause, CoreRule, CoreGoal, CoreTerm,
     -- ** Basic value core generation.
-    bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural), (=:=), (=/=)
+    bBool, bNat, bReal, bStruct, bNull, Basic (Boolean, Real, Natural, Struct), (=:=), (=/=)
 )
 where
 
@@ -50,9 +50,8 @@ where
         => [(Ident, CoreExpression m)]  -- ^ Local variables.
         -> [Ident]                      -- ^ Parameters.
         -> [CoreStatement m]            -- ^ Instructions.
-        -> Bool                         -- ^ True if writing access to global variables is granted.
         -> Subprogram m                 -- ^ Imperative subprogram.
-    imperative locals params stmts access = Imperative (Method locals params stmts) access
+    imperative locals params stmts = Imperative locals params stmts
 
     -- | Assignment: a := b;
     iAssignment :: ()
@@ -89,10 +88,21 @@ where
         -> CoreStatement m      -- ^ Procedure call.
     iCall = ICall 
 
-    -- | Forced backtracking: trackback.
+    -- | Forced backtracking: backtrack.
     iTrackBack :: () 
         => CoreStatement m      -- ^ Trackback statement.
-    iTrackBack = ITrackBack
+    iTrackBack = IBackTrack
+
+    -- | Saves the given expression's value in a persisten register: keep.
+    iKeep :: ()
+        => CoreExpression m     -- ^ Expression, whichs value is to be kept.
+        -> CoreStatement m      -- ^ Keep statement.
+    iKeep = IKeep
+
+    -- | Gets the value stored in the persistent register: remind.
+    iRemind :: ()
+        => CoreExpression m     -- ^ Remind expression.
+    iRemind = IRemind
 
     -- | Variable expression: a.
     iVar :: ()
@@ -125,7 +135,7 @@ where
         => CoreLambda m     -- ^ Subprogram expression.
         -> [Ident]          -- ^ Parameters.
         -> Subprogram m     -- ^ Functional subprogram.
-    functional expr idents = Functional (CLM expr idents) 
+    functional expr idents = Functional expr idents
 
     -- | Functional variable expression: v.
     fVar :: ()
@@ -182,26 +192,36 @@ where
         -> CoreLambda m -- ^ Functional abstraction expression.
     fAbs = FAbs 
 
+    -- | Forces backtracking if evaluated: backtrack.
+    fBackTrack :: ()
+        => CoreLambda m     -- ^ Backtrack expression.
+    fBackTrack = FBackTrack 
+    
+    -- | Saves the given expression's value in a persisten register: keep.
+    fKeep :: ()
+        => CoreLambda m     -- ^ Expression, whichs value is to be kept.
+        -> CoreLambda m     -- ^ Keep expression.
+    fKeep = FKeep
+
+    -- | Gets the value stored in the persistent register: remind.
+    fRemind :: ()
+        => CoreLambda m     -- ^ Remind expression.
+    fRemind = FRemind       
+
     -- | New logical query.
     query :: ()
         => [Ident]      -- ^ Parameters.
-        -> Maybe Ident  -- ^ Maybe the variable, for which a value is sought; if Nothing: boolean is returned.
+        -> Ident        -- ^ the variable, for which a value is sought.
         -> [Ident]      -- ^ Knowledge bases to be asked.
         -> [CoreClause] -- ^ Goals of the query.
         -> Subprogram m -- ^ Logical query.
-    query params sought bases clause = Logical $ Query params sought bases clause 
+    query params sought bases clause = Logical params sought bases clause 
 
     -- | Logical disjunction of goals: g1;g2;..;gn.
     lOr :: ()
         => [[CoreClause]]   -- ^ List of konjoined goals g1,g2,..,gn.
         -> CoreClause       -- ^ Logical disjunction of goals.
     lOr = LOr  
-
-    -- | Negation of goals: ¬g.
-    lNot :: ()
-        => [CoreClause] -- ^ list of goals g.
-        -> CoreClause   -- ^ Negation of goals.
-    lNot = LNot 
 
     -- | A logical goal: g.
     lGoal :: ()

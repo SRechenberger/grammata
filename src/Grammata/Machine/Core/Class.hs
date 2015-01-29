@@ -21,14 +21,14 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 ---------------------------------------------------------------------------
 
 module Grammata.Machine.Core.Class
 (
     -- * Grammata core language execution class.
-    GrammataCore (..),
+    CoreGeneral (..),
 
     -- * Auxiliaries.
     Ident, Pointer
@@ -48,19 +48,20 @@ where
     type Pointer = Int
 
     -- | Grammata core language execution class.
-    class (Monad m, Alternative m) => GrammataCore m where
+    class (Monad m, Alternative m) => CoreGeneral m where
         -- | Entering a new scope.
         enter        :: [(Ident, Basic)] -> m ()
         -- | Leaving the current scope.
         leave        :: m ()
-        -- | Chooses one value from a list.
-        choice       :: [m a] -> m a 
-        choice = foldr (<|>) empty 
         -- | Calling and running a procedure.
-        callProcedure :: Ident -> (Basic -> m ()) -> [Basic] -> m ()
+        call :: Ident -> (Basic -> m ()) -> [Basic] -> m ()
         -- | Saves the currents state and the action to perform after backtracking as a backtrack point.
         setBacktrackPoint :: m () -> m ()
         -- | Returns to the last backtrack point.
         trackback :: m ()
-        -- | Read a symbol from the stack.
-        getSymbol    :: Ident -> m Basic 
+        -- | Keeps the given basic value in the persistent register.
+        keep :: Basic -> m () 
+        -- | Gets the value in the persistent register.
+        remind :: m Basic
+        -- | Reading from the symbol table.
+        readSymbol  :: Ident -> m Basic

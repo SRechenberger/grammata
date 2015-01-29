@@ -1,0 +1,47 @@
+program QuickSort
+begin
+    lambda filter(p,list) is
+        if $list == [] then
+            []
+        else 
+            if ($p .$list) then
+                .$list : filter($p, %$list)
+            else
+                filter( $p, % $list )
+            end 
+        end
+    end
+
+    proc concat(as,bs) 
+    with
+        var tmp := [];
+    does
+        while $as != [] do
+            tmp := .$as : $tmp;
+            as := %$as;
+        end
+        while $tmp != [] do
+            bs := .$tmp : $bs;
+            tmp := %$tmp;
+        end
+        return $bs;
+    end
+
+    lambda quicksort(list) is       
+        if $list == [] then 
+            [] 
+        else 
+            let 
+                $concat := \$as $bs . concat($as,$bs);
+                $left := quicksort(filter( \$x . $x <= .$list , %$list));
+                $right := .$list : quicksort(filter( \$x . $x > .$list ,%$list));
+            in 
+                $concat $left $right
+            end
+        end
+    end
+
+    lambda main() is
+        quicksort([6,2,5,8,22,7,8])
+    end
+end

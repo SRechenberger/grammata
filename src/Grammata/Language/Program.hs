@@ -21,7 +21,7 @@
 -- Maintainer : sascha.rechenberger@uni-ulm.de
 -- Stability : stable
 -- Portability : portable
--- Copyright : (c) Sascha Rechenberger, 2014
+-- Copyright : (c) Sascha Rechenberger, 2014, 2015
 -- License : GPL-3
 --
 -- [Grammata program grammar]
@@ -69,9 +69,9 @@ where
 
     -- | AST @SUBPRG@.
     data Subprg  
-        = Procedure Returns [String] [(String, Maybe (Expression Value))] [Statement]
+        = Procedure [String] [(String, Maybe (Expression Value))] [Statement]
         | Lambda [String] Lambda
-        | Query [String] [String] (Maybe String) Clause
+        | Query [String] [String] String Clause
         | Base [Rule]
         deriving(Show, Eq)
 
@@ -98,13 +98,8 @@ where
             decl = (,) <$> (token "var" *> ident) <*> (try (token ":=" *> (Just <$> parseExpression) <* token ";") <|> (token ";" *> pure Nothing))
 
             subprg :: Parser (String, Subprg) 
-            subprg = spaces >> (lookAhead . choice . map token) ["proc", "func", "lambda", "query", "base"] >>= \la -> case la of
-                "proc"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if not ret 
-                    then pure (name, Procedure Void params decls stmts)
-                    else fail $ name ++ " is a function." 
-                "func"   -> parseImperative >>= \(ret, name, params, decls, stmts) -> if ret 
-                    then pure (name, Procedure Something params decls stmts)
-                    else fail $ name ++ " is a procedure."
+            subprg = spaces >> (lookAhead . choice . map token) ["proc", "lambda", "query", "base"] >>= \la -> case la of
+                "proc"   -> parseImperative >>= \(name, params, decls, stmts) -> pure (name, Procedure params decls stmts)
                 "lambda" -> parseFunctional >>= \(name, params, func) -> pure (name, Lambda params func)
                 "query"  -> parseQuery >>= \(name, params, bases, sought, clause) -> pure (name, Query params bases sought clause) 
                 "base"   -> parseBase >>= \(name, rules) -> pure (name, Base rules)
