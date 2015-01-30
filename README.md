@@ -6,7 +6,7 @@ It supports the *imperative* as well as the *functional* and *logical* programmi
 It can be seen as a partly extended partly constrained external representation of the internal machine language,
 to which it is compiled.
 
-This project, in particular, the virtual Machine, was part of the Bachelor Thesis
+This project, in particular, the virtual Machine, was part of the bachelor thesis
 "Das Grammateion - Monadische Implementierung einer virtuellen Maschine zur Ausführung einer polyparadigmatischen Programmiersprache"
 ("The Grammateion - Monadic Implementation of a virtual machine for the execution of a polyparadigmatic programming language")
 by Sascha Rechenberger.
@@ -20,27 +20,27 @@ First, clone from GitHub
 git clone git@github.com:SRechenberger/grammata.git
 cd grammata
 ```
-then build with cabal
+Then build with cabal
 ```
 cabal install
 ```
-then, if not already done, add `~/.cabal/bin` to your `$PATH` variable.
+If not already done, add `~/.cabal/bin` to your `$PATH` variable.
 
 Usage
 -----
 
-to run a script, simply call, for example
+To run a script, simply call, for example
 ```
 grammata examples/quicksort.gr
 ```
-it will then be compiled and executed,
+It will then be compiled and executed,
 producing the output 
 ```
 cons(2,cons(5,cons(6,cons(7,cons(8,cons(22,nil)))))) ?
 ```
-you can either accept the printed solution by pressing the 'y' button, 
-or demand a new one, by pressing an other one.
-In this case there is only one solution, so either case it terminates with `OK.`
+You can either accept the printed solution by pressing the 'y' key, 
+or demand the next one by pressing any other one.
+In this case there is only one solution, so in either case it terminates with `OK.`
 
 Examples
 --------
