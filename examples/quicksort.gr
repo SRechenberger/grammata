@@ -42,6 +42,6 @@ begin
     end
 
     lambda main() is
-        quicksort([6,2,5,8,22,7,8])
+        quicksort([6,2,5,8,22,7])
     end
 end
