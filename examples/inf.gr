@@ -1,0 +1,20 @@
+program Inf
+begin
+
+	lambda s(x) is
+		$x+1
+	end
+
+	base inf says
+
+		nat(0).
+		nat(s(N)) :- nat(N).
+
+	end
+
+	query main() asks inf for X 
+	?-
+		nat(X)
+	end 
+
+end

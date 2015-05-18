@@ -1,0 +1,13 @@
+program Nondeterminism
+with 
+    var x := vals();
+begin    
+    query vals() for X 
+        ?- X ~ 3 ; X ~ 5 ; X ~ 7
+    end
+
+    proc main() 
+    does 
+        return p($x,$x * vals()); 
+    end
+end

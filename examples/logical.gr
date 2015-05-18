@@ -1,0 +1,17 @@
+program Logical begin
+    base roads says 
+        road(augsburg,ulm).
+        road(stuttgart,ulm).
+        road(augsburg,muenchen).
+        road(muenchen,stuttgart).
+    end
+
+    base paths says
+        path(X,Y) :- road(X,Y).
+        path(X,Z) :- road(X,Y), path(Y,Z).
+    end
+
+    query main() asks roads paths for X 
+        ?- path(augsburg, X)
+    end
+end

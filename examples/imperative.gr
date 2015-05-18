@@ -1,0 +1,15 @@
+program Imperative begin
+    proc fak(n) 
+    with var result := 1;
+    does 
+        while $n > 1 do 
+            result := $result * $n;
+            n := $n - 1;
+        end
+        return $result;
+    end
+    
+    proc main() does 
+        return fak(5); 
+    end
+end
